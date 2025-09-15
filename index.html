@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dragon Face</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 
 <body>
     <canvas id="confetti-canvas"></canvas>
+
     <main class="main-container">
         <div id="rules-box">
             <h2>How to Play Dragon Face</h2>
@@ -25,16 +27,27 @@
 
             <h3>Key Rules</h3>
             <ul>
-                <li><strong>Capture:</strong> Jump over an opponent's piece to capture it. The captured piece is not removed; it flips to your color
+                <li><strong>Capture:</strong> Jump over an opponent's piece to capture it. The captured piece is not
+                    removed; it flips to your color
                     and becomes yours!</li>
-                <li><strong>Immunity:</strong> A newly flipped piece cannot be re-captured on the opponent's very next turn.</li>
-                <li><strong>Sacrifice Zone:</strong> The outer border of the board. Be careful when moving pieces here!</li>
+                <li><strong>Immunity:</strong> A newly flipped piece cannot be re-captured on the opponent's very next
+                    turn.</li>
+                <li><strong>Sacrifice Zone:</strong> The outer border of the board. Be careful when moving pieces here!
+                </li>
             </ul>
         </div>
 
         <div id="game-container">
+            <div id="network-controls">
+                <div id="host-info">Your Game Code: <span id="player-id">loading...</span></div>
+                <div id="join-info">
+                    <input type="text" id="join-id-input" placeholder="Enter friend's code">
+                    <button id="join-btn">Join Game</button>
+                </div>
+            </div>
+
             <h1>Dragon Face</h1>
-            <div id="status-display">Player 1's Turn</div>
+            <div id="status-display">Waiting to connect...</div>
             <div id="game-board"></div>
         </div>
     </main>
