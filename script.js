@@ -1,14 +1,19 @@
 /*
-This file contains all the game logic for Dragon Face for a single-system
-(hotseat) multiplayer game.
+This file contains all the game logic for Dragon Face, including a fresh
+implementation of the multiplayer matchmaking and connection logic.
 */
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- UI and Board Elements ---
     const boardElement = document.getElementById('game-board');
     const statusDisplay = document.getElementById('status-display');
-    const rows = 11;
-    const cols = 9;
+    const createBtn = document.getElementById('create-btn');
+    const gameCodeInfo = document.getElementById('game-code-info');
+    const gameCodeSpan = document.getElementById('game-code');
+    const joinIdInput = document.getElementById('join-id-input');
+    const joinBtn = document.getElementById('join-btn');
+    const networkControls = document.getElementById('network-controls');
+    const joinInfo = document.getElementById('join-info');
 
     // --- Game State Variables ---
     let boardState = [];
@@ -18,32 +23,102 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGameOver = false;
     let lastFlippedPieceCoords = null;
 
-    // --- Piece Definitions ---
-    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false };
-    const P1A = { type: 'ambassador', player: 1, isTrapped: false };
-    const P1E = { type: 'emperor', player: 1, isTrapped: false };
-    const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false };
-    const P2A = { type: 'ambassador', player: 2, isTrapped: false };
-    const P2E = { type: 'emperor', player: 2, isTrapped: false };
+    // --- PeerJS & Firebase State ---
+    let peer;
+    let conn;
+    let playerNumber;
+    let myPeerId;
 
-    const initialLayout = [
-        [null, null, null, null, null, null, null, null, null],
-        [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null],
-        [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null],
-        [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null],
-        [null, null, null, null, null, null, null, null, null]
-    ];
+    // --- Firebase Initialization ---
+    // This uses the configuration from your screenshot.
+    const firebaseConfig = {
+        apiKey: "AIzaSyDEA-wfJkr30_p8VGSaPqpSQ8zMSHEY8K4",
+        authDomain: "dragon-face-game.firebaseapp.com",
+        databaseURL: "https://dragon-face-game-default-rtdb.firebaseio.com",
+        projectId: "dragon-face-game",
+        storageBucket: "dragon-face-game.appspot.com",
+        messagingSenderId: "1044326075620",
+        appId: "1:1044326075620:web:a409098aeed84ef7b930f1"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    // --- Core Game Functions ---
+    // --- Matchmaking and Connection Logic ---
+
+    function initializePeer() {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myPeerId = id;
+        });
+
+        // This listener is for the HOST, waiting for the joiner to connect.
+        peer.on('connection', (connection) => {
+            conn = connection;
+            networkControls.style.display = 'none';
+            setupConnectionEvents();
+            updateStatusDisplay();
+        });
+    }
+
+    createBtn.addEventListener('click', () => {
+        playerNumber = 1;
+        const gameCode = generateShortCode();
+        database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
+
+        createBtn.style.display = 'none';
+        joinInfo.style.display = 'none';
+        gameCodeSpan.textContent = gameCode;
+        gameCodeInfo.style.display = 'block';
+        statusDisplay.textContent = "Share this code with a friend!";
+    });
+
+    joinBtn.addEventListener('click', () => {
+        const gameCode = joinIdInput.value.toUpperCase();
+        if (!gameCode) return;
+
+        database.ref('rooms/' + gameCode).once('value', (snapshot) => {
+            if (snapshot.exists()) {
+                const hostId = snapshot.val().hostId;
+                conn = peer.connect(hostId);
+
+                // This event handler is crucial for the JOINER to start the game.
+                conn.on('open', () => {
+                    playerNumber = 2;
+                    networkControls.style.display = 'none';
+                    setupConnectionEvents();
+                    updateStatusDisplay();
+                });
+
+                database.ref('rooms/' + gameCode).remove();
+            } else {
+                alert("Game code not found!");
+            }
+        });
+    });
+
+    function setupConnectionEvents() {
+        if (conn) {
+            conn.on('data', (data) => {
+                if (data.type === 'move') {
+                    movePiece(data.move.startRow, data.move.startCol, data.move.move);
+                }
+            });
+        }
+    }
+
+    function generateShortCode() {
+        return Math.random().toString(36).substring(2, 7).toUpperCase();
+    }
+
+    // --- Core Game Logic ---
+    // This section contains the complete, working single-player logic.
+    // It is now integrated with the networking checks.
 
     function handleSquareClick(event) {
         if (isGameOver) return;
+        // Do not allow moves until the player is connected and it's their turn.
+        if (!playerNumber || currentPlayer !== playerNumber) return;
+
         const square = event.target.closest('.square');
         if (!square) return;
 
@@ -53,6 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
+                // Send the move to the other player before executing it locally.
+                if (conn) {
+                    conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
+                }
                 movePiece(selectedPiece.row, selectedPiece.col, move);
             }
             clearSelection();
@@ -96,111 +175,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatusDisplay();
     }
 
-    // --- Move Calculation Logic ---
-
-    function getGovernorMoves(r, c, player) {
-        const moves = [];
-        const piece = boardState[r][c];
-        const forwardDir = player === 1 ? -1 : 1;
-
-        for (let dc = -1; dc <= 1; dc++) {
-            const newR = r + forwardDir;
-            const newC = c + dc;
-            if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
-                moves.push({ r: newR, c: newC, type: 'move' });
-            }
-        }
-
-        if (piece.hasMoved === false) {
-            for (let dc = -1; dc <= 1; dc++) {
-                const oneStepR = r + forwardDir;
-                const oneStepC = c + dc;
-                const twoStepsR = r + (2 * forwardDir);
-                const twoStepsC = c + (2 * dc);
-                if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) {
-                    moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' });
-                }
-            }
-        }
-
-        for (let dc = -1; dc <= 1; dc++) {
-            if (dc === 0) continue;
-            const jumpedR = r + forwardDir;
-            const jumpedC = c + dc;
-            const jumpToR = r + (2 * forwardDir);
-            const jumpToC = c + (2 * dc);
-            const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-            const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
-            if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
-            }
-        }
-        return moves;
-    }
-
-    function getAmbassadorMoves(r, c) {
-        const moves = [];
-        const directions = [
-            { r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 },
-            { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }
-        ];
-
-        for (const dir of directions) {
-            let newR = r + dir.r;
-            let newC = c + dir.c;
-
-            while (isPlayableSquare(newR, newC)) {
-                if (boardState[newR][newC] === null) {
-                    moves.push({ r: newR, c: newC, type: 'move' });
-                    newR += dir.r;
-                    newC += dir.c;
-                } else {
-                    break;
-                }
-            }
-
-            const jumpedR = newR;
-            const jumpedC = newC;
-            const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-            const jumpToR = newR + dir.r;
-            const jumpToC = newC + dir.c;
-            const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
-            if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } });
-            }
-        }
-        return moves;
-    }
-
-    function getEmperorMoves(r, c) {
-        const moves = [];
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-                if (dr === 0 && dc === 0) continue;
-                const newR = r + dr;
-                const newC = c + dc;
-
-                if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
-                    moves.push({ r: newR, c: newC, type: 'move' });
-                }
-
-                const jumpedR = newR;
-                const jumpedC = newC;
-                const jumpToR = r + (2 * dr);
-                const jumpToC = c + (2 * dc);
-                const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-                const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
-                if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                    moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
-                }
-            }
-        }
-        return moves;
-    }
-
+    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
+    const initialLayout = [[null, null, null, null, null, null, null, null, null], [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null], [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null], [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null], [null, null, null, null, null, null, null, null, null]];
+    function getGovernorMoves(r, c, player) { const moves = []; const piece = boardState[r][c]; const forwardDir = player === 1 ? -1 : 1; for (let dc = -1; dc <= 1; dc++) { const newR = r + forwardDir; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } } if (piece.hasMoved === false) { for (let dc = -1; dc <= 1; dc++) { const oneStepR = r + forwardDir; const oneStepC = c + dc; const twoStepsR = r + (2 * forwardDir); const twoStepsC = c + (2 * dc); if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) { moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' }); } } } for (let dc = -1; dc <= 1; dc++) { if (dc === 0) continue; const jumpedR = r + forwardDir; const jumpedC = c + dc; const jumpToR = r + (2 * forwardDir); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } return moves; }
+    function getAmbassadorMoves(r, c) { const moves = []; const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }]; for (const dir of directions) { let newR = r + dir.r; let newC = c + dir.c; while (isPlayableSquare(newR, newC)) { if (boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); newR += dir.r; newC += dir.c; } else { break; } } const jumpedR = newR; const jumpedC = newC; const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const jumpToR = newR + dir.r; const jumpToC = newC + dir.c; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } }); } } return moves; }
+    function getEmperorMoves(r, c) { const moves = []; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (dr === 0 && dc === 0) continue; const newR = r + dr; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } const jumpedR = newR; const jumpedC = newC; const jumpToR = r + (2 * dr); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } } return moves; }
     function selectPiece(row, col) { clearSelection(); selectedPiece = { row, col, piece: boardState[row][col] }; const pieceElement = document.querySelector(`.square[data-row='${row}'][data-col='${col}'] .piece`); pieceElement.classList.add('selected'); validMoves = getValidMoves(row, col); highlightValidMoves(); }
     function clearSelection() { if (selectedPiece) { const pieceElement = document.querySelector(`.square[data-row='${selectedPiece.row}'][data-col='${selectedPiece.col}'] .piece`); if (pieceElement) pieceElement.classList.remove('selected'); } selectedPiece = null; validMoves = []; document.querySelectorAll('.valid-move').forEach(el => el.classList.remove('valid-move')); }
     function highlightValidMoves() { for (const move of validMoves) { const square = document.querySelector(`.square[data-row='${move.r}'][data-col='${move.c}']`); if (square) square.classList.add('valid-move'); } }
@@ -213,6 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPieces() { document.querySelectorAll('.piece').forEach(p => p.remove()); for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const pieceData = boardState[r][c]; if (pieceData) { const pieceElement = document.createElement('div'); pieceElement.classList.add('piece', `player${pieceData.player}`, pieceData.type); const square = document.querySelector(`.square[data-row='${r}'][data-col='${c}']`); square.appendChild(pieceElement); } } } }
 
     function updateStatusDisplay() {
+        if (!playerNumber) {
+            statusDisplay.textContent = "Create or join a game to start!";
+            return;
+        };
         statusDisplay.textContent = `Player ${currentPlayer}'s Turn`;
         statusDisplay.classList.remove('player1-color', 'player2-color');
         statusDisplay.classList.add(`player${currentPlayer}-color`);
@@ -220,6 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Game Start ---
     initializeBoard();
+    initializePeer();
     boardElement.addEventListener('click', handleSquareClick);
-    updateStatusDisplay();
 });
