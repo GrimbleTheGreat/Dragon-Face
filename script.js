@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const joinIdInput = document.getElementById('join-id-input');
     const joinBtn = document.getElementById('join-btn');
     const networkControls = document.getElementById('network-controls');
+    const joinInfo = document.getElementById('join-info');
 
     // --- Game State Variables ---
     let boardState = [];
@@ -43,13 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Matchmaking and Connection Logic ---
 
-    // This block has been corrected to handle the hosting process cleanly.
+    function generateShortCode() {
+        return Math.random().toString(36).substring(2, 7).toUpperCase();
+    }
+
     createBtn.addEventListener('click', () => {
         playerNumber = 1;
         const gameCode = generateShortCode();
         database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
 
-        // Update UI to show the code and hide unnecessary buttons.
         createBtn.style.display = 'none';
         joinInfo.style.display = 'none';
         gameCodeSpan.textContent = gameCode;
@@ -58,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDisplay.textContent = "Share this code with a friend!";
     });
 
-    // This block has been fixed to properly establish a connection for the joiner.
     joinBtn.addEventListener('click', () => {
         const gameCode = joinIdInput.value.toUpperCase();
         if (!gameCode) return;
@@ -68,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const hostId = snapshot.val().hostId;
                 conn = peer.connect(hostId);
 
-                // This is the crucial part that was missing: handling a successful connection.
                 conn.on('open', () => {
                     playerNumber = 2;
                     networkControls.style.display = 'none';
@@ -89,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
             myPeerId = id;
         });
 
-        // This is for the host: when the joiner connects.
         peer.on('connection', (connection) => {
             conn = connection;
             networkControls.style.display = 'none';
@@ -106,10 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-    }
-
-    function generateShortCode() {
-        return Math.random().toString(36).substring(2, 7).toUpperCase();
     }
 
     // --- Core Game Functions ---
@@ -135,7 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Game Start ---
 
-    // This new logic initializes the board immediately on page load.
+    // This logic now initializes the board immediately and sets up the event listeners correctly.
+    // The extra brace that was causing the error has been removed.
     initializeBoard();
     initializePeer();
     boardElement.addEventListener('click', handleSquareClick);
