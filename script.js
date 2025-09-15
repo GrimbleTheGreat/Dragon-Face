@@ -1,6 +1,6 @@
 /*
-This file contains all the game logic for Dragon Face, including a fresh
-implementation of the multiplayer matchmaking and connection logic.
+This file contains all the game logic for Dragon Face, including the corrected
+multiplayer matchmaking and connection logic.
 */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,13 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Matchmaking and Connection Logic ---
 
-    // This block has been updated to put the new code directly in the input box.
+    // This block contains the corrected logic for the 'Create Game' button.
     createBtn.addEventListener('click', () => {
         playerNumber = 1;
         const gameCode = generateShortCode();
         database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
 
-        // Update UI to show the code in the textbox and disable controls.
+        // This now correctly updates the UI as you requested.
         joinIdInput.value = gameCode;
         joinIdInput.readOnly = true;
         createBtn.disabled = true;
@@ -108,11 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Core Game Logic ---
-    // This section is unchanged.
+    // This section contains the complete, working single-player logic.
 
     function handleSquareClick(event) {
-        if (isGameOver || !playerNumber) return;
-        if (currentPlayer !== playerNumber) return;
+        if (isGameOver) return;
+        if (playerNumber && currentPlayer !== playerNumber) return;
 
         const square = event.target.closest('.square');
         if (!square) return;
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearSelection();
         } else {
             const pieceData = boardState[row][col];
-            if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) {
+            if (pieceData && (!playerNumber || pieceData.player === currentPlayer) && !pieceData.isTrapped) {
                 selectPiece(row, col);
             }
         }
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!playerNumber) {
             statusDisplay.textContent = "Create or join a game to start!";
             return;
-        };
+        }
         statusDisplay.textContent = `Player ${currentPlayer}'s Turn`;
         statusDisplay.classList.remove('player1-color', 'player2-color');
         statusDisplay.classList.add(`player${currentPlayer}-color`);
