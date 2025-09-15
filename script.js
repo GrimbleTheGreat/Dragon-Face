@@ -8,12 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const boardElement = document.getElementById('game-board');
     const statusDisplay = document.getElementById('status-display');
     const createBtn = document.getElementById('create-btn');
-    const gameCodeInfo = document.getElementById('game-code-info');
-    const gameCodeSpan = document.getElementById('game-code');
     const joinIdInput = document.getElementById('join-id-input');
     const joinBtn = document.getElementById('join-btn');
     const networkControls = document.getElementById('network-controls');
-    const joinInfo = document.getElementById('join-info');
 
     // --- Game State Variables ---
     let boardState = [];
@@ -30,9 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPeerId;
 
     // --- Firebase Initialization ---
-    // This uses the configuration from your screenshot.
     const firebaseConfig = {
-        apiKey: "AIzaSyDEA-wfJkr30_p8VGSaPqpSQ8zMSHEY8K4",
+        apiKey: "AIzaSyDEA-wf...", // This is your unique key
         authDomain: "dragon-face-game.firebaseapp.com",
         databaseURL: "https://dragon-face-game-default-rtdb.firebaseio.com",
         projectId: "dragon-face-game",
@@ -45,30 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Matchmaking and Connection Logic ---
 
-    function initializePeer() {
-        peer = new Peer();
-        peer.on('open', (id) => {
-            myPeerId = id;
-        });
-
-        // This listener is for the HOST, waiting for the joiner to connect.
-        peer.on('connection', (connection) => {
-            conn = connection;
-            networkControls.style.display = 'none';
-            setupConnectionEvents();
-            updateStatusDisplay();
-        });
-    }
-
+    // This block has been updated to put the new code directly in the input box.
     createBtn.addEventListener('click', () => {
         playerNumber = 1;
         const gameCode = generateShortCode();
         database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
 
-        createBtn.style.display = 'none';
-        joinInfo.style.display = 'none';
-        gameCodeSpan.textContent = gameCode;
-        gameCodeInfo.style.display = 'block';
+        // Update UI to show the code in the textbox and disable controls.
+        joinIdInput.value = gameCode;
+        joinIdInput.readOnly = true;
+        createBtn.disabled = true;
+        joinBtn.style.display = 'none';
+
         statusDisplay.textContent = "Share this code with a friend!";
     });
 
@@ -81,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const hostId = snapshot.val().hostId;
                 conn = peer.connect(hostId);
 
-                // This event handler is crucial for the JOINER to start the game.
                 conn.on('open', () => {
                     playerNumber = 2;
                     networkControls.style.display = 'none';
@@ -95,6 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    function initializePeer() {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myPeerId = id;
+        });
+
+        peer.on('connection', (connection) => {
+            conn = connection;
+            networkControls.style.display = 'none';
+            setupConnectionEvents();
+            updateStatusDisplay();
+        });
+    }
 
     function setupConnectionEvents() {
         if (conn) {
@@ -111,13 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Core Game Logic ---
-    // This section contains the complete, working single-player logic.
-    // It is now integrated with the networking checks.
+    // This section is unchanged.
 
     function handleSquareClick(event) {
-        if (isGameOver) return;
-        // Do not allow moves until the player is connected and it's their turn.
-        if (!playerNumber || currentPlayer !== playerNumber) return;
+        if (isGameOver || !playerNumber) return;
+        if (currentPlayer !== playerNumber) return;
 
         const square = event.target.closest('.square');
         if (!square) return;
@@ -128,7 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
-                // Send the move to the other player before executing it locally.
                 if (conn) {
                     conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
                 }
@@ -146,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function movePiece(startRow, startCol, move) {
         const pieceToMove = boardState[startRow][startCol];
         let capturedCoords = null;
-
         if (move.type === 'capture') {
             const jumpedPiece = boardState[move.jumped.r][move.jumped.c];
             if (jumpedPiece.type === 'emperor') {
@@ -156,18 +149,14 @@ document.addEventListener('DOMContentLoaded', () => {
             jumpedPiece.player = currentPlayer;
             capturedCoords = { r: move.jumped.r, c: move.jumped.c };
         }
-
         if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) {
             pieceToMove.hasMoved = true;
         }
-
         if (!isPlayableSquare(move.r, move.c)) {
             pieceToMove.isTrapped = true;
         }
-
         boardState[startRow][startCol] = null;
         boardState[move.r][move.c] = pieceToMove;
-
         checkForGovernorPromotion(move.r, pieceToMove);
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         lastFlippedPieceCoords = capturedCoords;

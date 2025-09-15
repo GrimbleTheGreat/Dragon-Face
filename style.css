@@ -195,36 +195,21 @@ body {
     z-index: 1001;
 }
 
-/* --- New Networking UI Styles --- */
+/* --- Updated Networking UI Styles --- */
 
 #network-controls {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    /* Changed to row */
     align-items: center;
+    /* Vertically aligns items */
     gap: 10px;
     margin-bottom: 20px;
     padding: 15px;
     background-color: #444;
     border-radius: 8px;
-    width: 80%;
-    max-width: 500px;
-}
-
-#game-code-info {
-    font-size: 1.1em;
-}
-
-#game-code {
-    font-weight: bold;
-    color: #F1C40F;
-    background-color: #2c2c2c;
-    padding: 2px 8px;
-    border-radius: 4px;
-}
-
-#join-info {
-    display: flex;
-    gap: 10px;
+    width: auto;
+    /* Auto width */
 }
 
 #join-id-input {
@@ -233,14 +218,27 @@ body {
     color: #fff;
     padding: 5px 10px;
     border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
 }
 
+#create-btn,
 #join-btn {
     border: none;
-    background-color: #3498DB;
     color: #fff;
-    padding: 5px 15px;
+    padding: 6px 15px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
 }
+
+#create-btn {
+    background-color: #2ECC71;
+}
+
+/* Green */
+#join-btn {
+    background-color: #3498DB;
+}
+
+/* Blue */
