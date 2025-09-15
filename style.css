@@ -197,19 +197,33 @@ body {
 
 /* --- Updated Networking UI Styles --- */
 
+/* --- Styles for New Multiplayer Button --- */
+
+#multiplayer-btn {
+    border: none;
+    background-color: #9b59b6;
+    /* Purple */
+    color: #fff;
+    padding: 10px 25px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 20px;
+}
+
+/* This rule hides the network controls until the button is clicked */
 #network-controls {
-    display: flex;
+    display: none;
+    /* Changed from flex */
     flex-direction: row;
-    /* Changed to row */
     align-items: center;
-    /* Vertically aligns items */
     gap: 10px;
     margin-bottom: 20px;
     padding: 15px;
     background-color: #444;
     border-radius: 8px;
     width: auto;
-    /* Auto width */
 }
 
 #join-id-input {

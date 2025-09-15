@@ -79,6 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    multiplayerBtn.addEventListener('click', () => {
+        // When clicked, hide this button and show the network controls.
+        multiplayerBtn.style.display = 'none';
+        networkControls.style.display = 'flex';
+        statusDisplay.textContent = "Create or join a game to start!";
+
+        // Initialize the PeerJS connection only when multiplayer is chosen.
+        initializePeer();
+    });
+
     function initializePeer() {
         peer = new Peer();
         peer.on('open', (id) => {
@@ -111,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // This section contains the complete, working single-player logic.
 
     function handleSquareClick(event) {
-        if (isGameOver) return;
+        if (isGameOver || !playerNumber) return;
         if (playerNumber && currentPlayer !== playerNumber) return;
 
         const square = event.target.closest('.square');
@@ -192,6 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Game Start ---
     initializeBoard();
-    initializePeer();
+    updateStatusDisplay();
     boardElement.addEventListener('click', handleSquareClick);
 });
