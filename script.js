@@ -29,10 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPeerId;
 
     // --- Firebase Initialization ---
-
-    // This block includes your specific Firebase configuration keys.
     const firebaseConfig = {
-        apiKey: "AIzaSyDEA-wfJkr30_p8VGSaPqpSQ8zMSHEY8K4",
+        apiKey: "AIzaSyDEA-wf...", // This is your unique key
         authDomain: "dragon-face-game.firebaseapp.com",
         databaseURL: "https://dragon-face-game-default-rtdb.firebaseio.com",
         projectId: "dragon-face-game",
@@ -49,20 +47,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return Math.random().toString(36).substring(2, 7).toUpperCase();
     }
 
+    // This block is updated to set up the host's game immediately.
     createBtn.addEventListener('click', () => {
+        playerNumber = 1; // The creator is Player 1
         const gameCode = generateShortCode();
+
+        database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
+
+        // Hide join controls and show the code
+        joinBtn.style.display = 'none';
+        joinIdInput.style.display = 'none';
+        createBtn.style.display = 'none';
         gameCodeSpan.textContent = gameCode;
         gameCodeInfo.style.display = 'block';
-        createBtn.disabled = true;
 
-        database.ref('rooms/' + gameCode).set({
-            hostId: myPeerId
-        });
-
-        playerNumber = 1;
-        statusDisplay.textContent = "Code created. Waiting for friend to join...";
+        statusDisplay.textContent = "Waiting for friend to join...";
+        initializeBoard(); // Set up the board for the host immediately
     });
 
+    // This block is updated for a cleaner join flow.
     joinBtn.addEventListener('click', () => {
         const gameCode = joinIdInput.value.toUpperCase();
         if (!gameCode) return;
@@ -71,11 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (snapshot.exists()) {
                 const hostId = snapshot.val().hostId;
                 conn = peer.connect(hostId);
-                conn.on('open', () => {
-                    playerNumber = 2;
-                    startGame();
-                });
-                database.ref('rooms/' + gameCode).remove();
+                // The 'open' event will handle starting the game for the joiner
             } else {
                 alert("Game code not found!");
             }
@@ -87,14 +86,20 @@ document.addEventListener('DOMContentLoaded', () => {
         peer.on('open', (id) => {
             myPeerId = id;
         });
+
+        // This is for the host: when the joiner connects.
         peer.on('connection', (connection) => {
             conn = connection;
-            startGame();
+            playerNumber = 1; // Re-confirm host is player 1
+            // The host's game is already set up, so we just hide the code and start.
+            networkControls.style.display = 'none';
+            setupConnectionEvents();
+            updateStatusDisplay();
         });
     }
 
-    function startGame() {
-        networkControls.style.display = 'none';
+    // This function sets up the game board and data listeners once connected.
+    function setupConnectionEvents() {
         if (conn) {
             conn.on('data', (data) => {
                 if (data.type === 'move') {
@@ -102,11 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        initializeBoard();
-        updateStatusDisplay();
     }
 
-    // --- (The rest of your game logic: handleSquareClick, movePiece, etc., is unchanged) ---
+    // --- Core Game Functions ---
+
     function handleSquareClick(event) { if (isGameOver || !playerNumber) return; if (currentPlayer !== playerNumber) { return; } const square = event.target.closest('.square'); if (!square) return; const row = parseInt(square.dataset.row); const col = parseInt(square.dataset.col); if (selectedPiece) { const move = validMoves.find(m => m.r === row && m.c === col); if (move) { if (conn) { conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } }); } movePiece(selectedPiece.row, selectedPiece.col, move); } clearSelection(); } else { const pieceData = boardState[row][col]; if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) { selectPiece(row, col); } } }
     function movePiece(startRow, startCol, move) { const pieceToMove = boardState[startRow][startCol]; let capturedCoords = null; if (move.type === 'capture') { const jumpedPiece = boardState[move.jumped.r][move.jumped.c]; if (jumpedPiece.type === 'emperor') { endGame(currentPlayer); return; } jumpedPiece.player = currentPlayer; capturedCoords = { r: move.jumped.r, c: move.jumped.c }; } if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) { pieceToMove.hasMoved = true; } if (!isPlayableSquare(move.r, move.c)) { pieceToMove.isTrapped = true; } boardState[startRow][startCol] = null; boardState[move.r][move.c] = pieceToMove; checkForGovernorPromotion(move.r, pieceToMove); currentPlayer = currentPlayer === 1 ? 2 : 1; lastFlippedPieceCoords = capturedCoords; renderPieces(); updateStatusDisplay(); }
     const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
