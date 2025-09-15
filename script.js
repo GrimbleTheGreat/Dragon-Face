@@ -43,29 +43,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Matchmaking and Connection Logic ---
 
-    function generateShortCode() {
-        return Math.random().toString(36).substring(2, 7).toUpperCase();
-    }
-
-    // This block is updated to set up the host's game immediately.
+    // This block has been corrected to handle the hosting process cleanly.
     createBtn.addEventListener('click', () => {
-        playerNumber = 1; // The creator is Player 1
+        playerNumber = 1;
         const gameCode = generateShortCode();
-
         database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
 
-        // Hide join controls and show the code
-        joinBtn.style.display = 'none';
-        joinIdInput.style.display = 'none';
+        // Update UI to show the code and hide unnecessary buttons.
         createBtn.style.display = 'none';
+        joinInfo.style.display = 'none';
         gameCodeSpan.textContent = gameCode;
         gameCodeInfo.style.display = 'block';
 
-        statusDisplay.textContent = "Waiting for friend to join...";
-        initializeBoard(); // Set up the board for the host immediately
+        statusDisplay.textContent = "Share this code with a friend!";
     });
 
-    // This block is updated for a cleaner join flow.
+    // This block has been fixed to properly establish a connection for the joiner.
     joinBtn.addEventListener('click', () => {
         const gameCode = joinIdInput.value.toUpperCase();
         if (!gameCode) return;
@@ -74,7 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (snapshot.exists()) {
                 const hostId = snapshot.val().hostId;
                 conn = peer.connect(hostId);
-                // The 'open' event will handle starting the game for the joiner
+
+                // This is the crucial part that was missing: handling a successful connection.
+                conn.on('open', () => {
+                    playerNumber = 2;
+                    networkControls.style.display = 'none';
+                    setupConnectionEvents();
+                    updateStatusDisplay();
+                });
+
+                database.ref('rooms/' + gameCode).remove();
             } else {
                 alert("Game code not found!");
             }
@@ -90,15 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // This is for the host: when the joiner connects.
         peer.on('connection', (connection) => {
             conn = connection;
-            playerNumber = 1; // Re-confirm host is player 1
-            // The host's game is already set up, so we just hide the code and start.
             networkControls.style.display = 'none';
             setupConnectionEvents();
             updateStatusDisplay();
         });
     }
 
-    // This function sets up the game board and data listeners once connected.
     function setupConnectionEvents() {
         if (conn) {
             conn.on('data', (data) => {
@@ -107,6 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+    }
+
+    function generateShortCode() {
+        return Math.random().toString(36).substring(2, 7).toUpperCase();
     }
 
     // --- Core Game Functions ---
@@ -128,9 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function isWithinBoardBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
     function initializeBoard() { boardState = JSON.parse(JSON.stringify(initialLayout)); boardElement.innerHTML = ''; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const square = document.createElement('div'); square.dataset.row = r; square.dataset.col = c; square.classList.add('square'); if (isPlayableSquare(r, c)) { if ((r + c) % 2 === 0) square.classList.add('dark-square'); else square.classList.add('light-square'); } else { if ((r + c) % 2 === 0) square.classList.add('sacrifice-dark'); else square.classList.add('sacrifice-light'); } boardElement.appendChild(square); } } renderPieces(); }
     function renderPieces() { document.querySelectorAll('.piece').forEach(p => p.remove()); for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const pieceData = boardState[r][c]; if (pieceData) { const pieceElement = document.createElement('div'); pieceElement.classList.add('piece', `player${pieceData.player}`, pieceData.type); const square = document.querySelector(`.square[data-row='${r}'][data-col='${c}']`); square.appendChild(pieceElement); } } } }
-    function updateStatusDisplay() { if (!playerNumber) return; statusDisplay.textContent = `Player ${currentPlayer}'s Turn`; statusDisplay.classList.remove('player1-color', 'player2-color'); statusDisplay.classList.add(`player${currentPlayer}-color`); }
+    function updateStatusDisplay() { if (!playerNumber) { statusDisplay.textContent = "Create or join a game to start!"; return; }; statusDisplay.textContent = `Player ${currentPlayer}'s Turn`; statusDisplay.classList.remove('player1-color', 'player2-color'); statusDisplay.classList.add(`player${currentPlayer}-color`); }
 
     // --- Game Start ---
-    boardElement.addEventListener('click', handleSquareClick);
+
+    // This new logic initializes the board immediately on page load.
+    initializeBoard();
     initializePeer();
+    boardElement.addEventListener('click', handleSquareClick);
 });
