@@ -1,13 +1,15 @@
 /*
-This file contains all the game logic for Dragon Face, including the new
-peer-to-peer multiplayer functionality using the PeerJS library.
+This file contains all the game logic for Dragon Face, now using Firebase
+as a matchmaker for short, 5-character game codes.
 */
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- UI and Board Elements ---
     const boardElement = document.getElementById('game-board');
     const statusDisplay = document.getElementById('status-display');
-    const playerIdSpan = document.getElementById('player-id');
+    const createBtn = document.getElementById('create-btn');
+    const gameCodeInfo = document.getElementById('game-code-info');
+    const gameCodeSpan = document.getElementById('game-code');
     const joinIdInput = document.getElementById('join-id-input');
     const joinBtn = document.getElementById('join-btn');
     const networkControls = document.getElementById('network-controls');
@@ -20,72 +22,80 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGameOver = false;
     let lastFlippedPieceCoords = null;
 
-    // --- PeerJS Networking State ---
+    // --- PeerJS & Firebase State ---
     let peer;
     let conn;
-    let playerNumber; // Will be 1 (host) or 2 (joiner)
+    let playerNumber;
     let myPeerId;
 
-    // --- Piece Definitions ---
-    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false };
-    const P1A = { type: 'ambassador', player: 1, isTrapped: false };
-    const P1E = { type: 'emperor', player: 1, isTrapped: false };
-    const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false };
-    const P2A = { type: 'ambassador', player: 2, isTrapped: false };
-    const P2E = { type: 'emperor', player: 2, isTrapped: false };
+    // --- Firebase Initialization ---
 
-    const initialLayout = [
-        [null, null, null, null, null, null, null, null, null],
-        [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null],
-        [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null],
-        [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null],
-        [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null],
-        [null, null, null, null, null, null, null, null, null]
-    ];
+    // This block includes your specific Firebase configuration keys.
+    const firebaseConfig = {
+        apiKey: "AIzaSyDEA-wfJkr30_p8VGSaPqpSQ8zMSHEY8K4",
+        authDomain: "dragon-face-game.firebaseapp.com",
+        databaseURL: "https://dragon-face-game-default-rtdb.firebaseio.com",
+        projectId: "dragon-face-game",
+        storageBucket: "dragon-face-game.appspot.com",
+        messagingSenderId: "1044326075620",
+        appId: "1:1044326075620:web:a409098aeed84ef7b930f1"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    // --- Peer-to-Peer Networking Setup ---
+    // --- Matchmaking and Connection Logic ---
 
-    // This block initializes the connection to the PeerJS signaling server.
-    function initializePeer() {
-        peer = new Peer(); // Create a new peer object
+    function generateShortCode() {
+        return Math.random().toString(36).substring(2, 7).toUpperCase();
+    }
 
-        // This event fires when the peer has successfully connected and received an ID.
-        peer.on('open', (id) => {
-            myPeerId = id;
-            playerIdSpan.textContent = id;
+    createBtn.addEventListener('click', () => {
+        const gameCode = generateShortCode();
+        gameCodeSpan.textContent = gameCode;
+        gameCodeInfo.style.display = 'block';
+        createBtn.disabled = true;
+
+        database.ref('rooms/' + gameCode).set({
+            hostId: myPeerId
         });
 
-        // This event fires when another peer tries to connect to you.
+        playerNumber = 1;
+        statusDisplay.textContent = "Code created. Waiting for friend to join...";
+    });
+
+    joinBtn.addEventListener('click', () => {
+        const gameCode = joinIdInput.value.toUpperCase();
+        if (!gameCode) return;
+
+        database.ref('rooms/' + gameCode).once('value', (snapshot) => {
+            if (snapshot.exists()) {
+                const hostId = snapshot.val().hostId;
+                conn = peer.connect(hostId);
+                conn.on('open', () => {
+                    playerNumber = 2;
+                    startGame();
+                });
+                database.ref('rooms/' + gameCode).remove();
+            } else {
+                alert("Game code not found!");
+            }
+        });
+    });
+
+    function initializePeer() {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myPeerId = id;
+        });
         peer.on('connection', (connection) => {
             conn = connection;
-            playerNumber = 1; // You are the host, Player 1
             startGame();
         });
     }
 
-    // This block handles the logic for the "Join Game" button.
-    joinBtn.addEventListener('click', () => {
-        const joinId = joinIdInput.value;
-        if (joinId) {
-            conn = peer.connect(joinId);
-            // This event fires when the connection is successfully established.
-            conn.on('open', () => {
-                playerNumber = 2; // You are the joiner, Player 2
-                startGame();
-            });
-        }
-    });
-
-    // This block sets up the game once a connection is made.
     function startGame() {
-        networkControls.style.display = 'none'; // Hide the connection UI
+        networkControls.style.display = 'none';
         if (conn) {
-            // This is the most important listener. It handles all data from the other player.
             conn.on('data', (data) => {
                 if (data.type === 'move') {
                     movePiece(data.move.startRow, data.move.startCol, data.move.move);
@@ -96,164 +106,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatusDisplay();
     }
 
-    // --- Core Game Functions ---
-
-    // This function has been modified to only allow the current player to move
-    // and to send the move to the other player.
-    function handleSquareClick(event) {
-        if (isGameOver || !playerNumber) return; // Can't play if game is over or not connected
-
-        // Check if it's your turn
-        if (currentPlayer !== playerNumber) {
-            return;
-        }
-
-        const square = event.target.closest('.square');
-        if (!square) return;
-
-        const row = parseInt(square.dataset.row);
-        const col = parseInt(square.dataset.col);
-
-        if (selectedPiece) {
-            const move = validMoves.find(m => m.r === row && m.c === col);
-            if (move) {
-                // Send the move to the other player
-                if (conn) {
-                    conn.send({
-                        type: 'move',
-                        move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move }
-                    });
-                }
-                // Execute the move locally
-                movePiece(selectedPiece.row, selectedPiece.col, move);
-            }
-            clearSelection();
-        } else {
-            const pieceData = boardState[row][col];
-            if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) {
-                selectPiece(row, col);
-            }
-        }
-    }
-
-    // The rest of the game logic is largely the same, as it just updates the local board state.
-    function movePiece(startRow, startCol, move) {
-        const pieceToMove = boardState[startRow][startCol];
-        let capturedCoords = null;
-
-        if (move.type === 'capture') {
-            const jumpedPiece = boardState[move.jumped.r][move.jumped.c];
-            if (jumpedPiece.type === 'emperor') {
-                endGame(currentPlayer);
-                return;
-            }
-            jumpedPiece.player = currentPlayer;
-            capturedCoords = { r: move.jumped.r, c: move.jumped.c };
-        }
-
-        if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) {
-            pieceToMove.hasMoved = true;
-        }
-
-        if (!isPlayableSquare(move.r, move.c)) {
-            pieceToMove.isTrapped = true;
-        }
-
-        boardState[startRow][startCol] = null;
-        boardState[move.r][move.c] = pieceToMove;
-
-        checkForGovernorPromotion(move.r, pieceToMove);
-        currentPlayer = currentPlayer === 1 ? 2 : 1;
-        lastFlippedPieceCoords = capturedCoords;
-        renderPieces();
-        updateStatusDisplay();
-    }
-
-    // --- (All other game logic functions: getGovernorMoves, getAmbassadorMoves, etc., are unchanged) ---
-    function getGovernorMoves(r, c, player) {
-        const moves = [];
-        const piece = boardState[r][c];
-        const forwardDir = player === 1 ? -1 : 1;
-        for (let dc = -1; dc <= 1; dc++) {
-            const newR = r + forwardDir;
-            const newC = c + dc;
-            if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
-                moves.push({ r: newR, c: newC, type: 'move' });
-            }
-        }
-        if (piece.hasMoved === false) {
-            for (let dc = -1; dc <= 1; dc++) {
-                const oneStepR = r + forwardDir;
-                const oneStepC = c + dc;
-                const twoStepsR = r + (2 * forwardDir);
-                const twoStepsC = c + (2 * dc);
-                if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) {
-                    moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' });
-                }
-            }
-        }
-        for (let dc = -1; dc <= 1; dc++) {
-            if (dc === 0) continue;
-            const jumpedR = r + forwardDir;
-            const jumpedC = c + dc;
-            const jumpToR = r + (2 * forwardDir);
-            const jumpToC = c + (2 * dc);
-            const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-            const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-            if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
-            }
-        }
-        return moves;
-    }
-    function getAmbassadorMoves(r, c) {
-        const moves = [];
-        const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }];
-        for (const dir of directions) {
-            let newR = r + dir.r;
-            let newC = c + dir.c;
-            while (isPlayableSquare(newR, newC)) {
-                if (boardState[newR][newC] === null) {
-                    moves.push({ r: newR, c: newC, type: 'move' });
-                    newR += dir.r;
-                    newC += dir.c;
-                } else { break; }
-            }
-            const jumpedR = newR;
-            const jumpedC = newC;
-            const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-            const jumpToR = newR + dir.r;
-            const jumpToC = newC + dir.c;
-            const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-            if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } });
-            }
-        }
-        return moves;
-    }
-    function getEmperorMoves(r, c) {
-        const moves = [];
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-                if (dr === 0 && dc === 0) continue;
-                const newR = r + dr;
-                const newC = c + dc;
-                if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
-                    moves.push({ r: newR, c: newC, type: 'move' });
-                }
-                const jumpedR = newR;
-                const jumpedC = newC;
-                const jumpToR = r + (2 * dr);
-                const jumpToC = c + (2 * dc);
-                const jumpedPiece = boardState[jumpedR]?.[jumpedC];
-                const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-                if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
-                    moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
-                }
-            }
-        }
-        return moves;
-    }
+    // --- (The rest of your game logic: handleSquareClick, movePiece, etc., is unchanged) ---
+    function handleSquareClick(event) { if (isGameOver || !playerNumber) return; if (currentPlayer !== playerNumber) { return; } const square = event.target.closest('.square'); if (!square) return; const row = parseInt(square.dataset.row); const col = parseInt(square.dataset.col); if (selectedPiece) { const move = validMoves.find(m => m.r === row && m.c === col); if (move) { if (conn) { conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } }); } movePiece(selectedPiece.row, selectedPiece.col, move); } clearSelection(); } else { const pieceData = boardState[row][col]; if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) { selectPiece(row, col); } } }
+    function movePiece(startRow, startCol, move) { const pieceToMove = boardState[startRow][startCol]; let capturedCoords = null; if (move.type === 'capture') { const jumpedPiece = boardState[move.jumped.r][move.jumped.c]; if (jumpedPiece.type === 'emperor') { endGame(currentPlayer); return; } jumpedPiece.player = currentPlayer; capturedCoords = { r: move.jumped.r, c: move.jumped.c }; } if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) { pieceToMove.hasMoved = true; } if (!isPlayableSquare(move.r, move.c)) { pieceToMove.isTrapped = true; } boardState[startRow][startCol] = null; boardState[move.r][move.c] = pieceToMove; checkForGovernorPromotion(move.r, pieceToMove); currentPlayer = currentPlayer === 1 ? 2 : 1; lastFlippedPieceCoords = capturedCoords; renderPieces(); updateStatusDisplay(); }
+    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
+    const initialLayout = [[null, null, null, null, null, null, null, null, null], [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null], [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null], [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null], [null, null, null, null, null, null, null, null, null]];
+    function getGovernorMoves(r, c, player) { const moves = []; const piece = boardState[r][c]; const forwardDir = player === 1 ? -1 : 1; for (let dc = -1; dc <= 1; dc++) { const newR = r + forwardDir; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } } if (piece.hasMoved === false) { for (let dc = -1; dc <= 1; dc++) { const oneStepR = r + forwardDir; const oneStepC = c + dc; const twoStepsR = r + (2 * forwardDir); const twoStepsC = c + (2 * dc); if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) { moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' }); } } } for (let dc = -1; dc <= 1; dc++) { if (dc === 0) continue; const jumpedR = r + forwardDir; const jumpedC = c + dc; const jumpToR = r + (2 * forwardDir); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } return moves; }
+    function getAmbassadorMoves(r, c) { const moves = []; const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }]; for (const dir of directions) { let newR = r + dir.r; let newC = c + dir.c; while (isPlayableSquare(newR, newC)) { if (boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); newR += dir.r; newC += dir.c; } else { break; } } const jumpedR = newR; const jumpedC = newC; const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const jumpToR = newR + dir.r; const jumpToC = newC + dir.c; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } }); } } return moves; }
+    function getEmperorMoves(r, c) { const moves = []; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (dr === 0 && dc === 0) continue; const newR = r + dr; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } const jumpedR = newR; const jumpedC = newC; const jumpToR = r + (2 * dr); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } } return moves; }
     function selectPiece(row, col) { clearSelection(); selectedPiece = { row, col, piece: boardState[row][col] }; const pieceElement = document.querySelector(`.square[data-row='${row}'][data-col='${col}'] .piece`); pieceElement.classList.add('selected'); validMoves = getValidMoves(row, col); highlightValidMoves(); }
     function clearSelection() { if (selectedPiece) { const pieceElement = document.querySelector(`.square[data-row='${selectedPiece.row}'][data-col='${selectedPiece.col}'] .piece`); if (pieceElement) pieceElement.classList.remove('selected'); } selectedPiece = null; validMoves = []; document.querySelectorAll('.valid-move').forEach(el => el.classList.remove('valid-move')); }
     function highlightValidMoves() { for (const move of validMoves) { const square = document.querySelector(`.square[data-row='${move.r}'][data-col='${move.c}']`); if (square) square.classList.add('valid-move'); } }
@@ -268,5 +128,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Game Start ---
     boardElement.addEventListener('click', handleSquareClick);
-    initializePeer(); // This now starts the connection process.
+    initializePeer();
 });
