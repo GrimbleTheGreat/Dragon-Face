@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let peer;
     let conn;
     let playerNumber; // Is undefined for hotseat, 1 or 2 for online
-    let myPeerId;
 
     // --- Piece Definitions ---
     const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
@@ -43,14 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializePeer() {
         peer = new Peer();
-        // HOST: When connection to server is open, get and display your ID.
         peer.on('open', (id) => {
-            myPeerId = id;
             playerNumber = 1; // The first person to click is the host (Player 1)
-            playerIdSpan.textContent = myPeerId;
+            playerIdSpan.textContent = id;
             statusDisplay.textContent = "Share your code with a friend!";
         });
-        // HOST: When a joiner connects to you.
         peer.on('connection', (connection) => {
             conn = connection;
             networkControls.style.display = 'none';
@@ -63,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const joinId = joinIdInput.value;
         if (joinId) {
             conn = peer.connect(joinId);
-            // JOINER: When your connection to the host is successful.
             conn.on('open', () => {
                 playerNumber = 2; // You successfully joined, you are Player 2
                 networkControls.style.display = 'none';
@@ -87,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleSquareClick(event) {
         if (isGameOver) return;
-        // This check enforces turns ONLY if it's a multiplayer game.
         if (playerNumber && currentPlayer !== playerNumber) return;
 
         const square = event.target.closest('.square');
@@ -98,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
-                // If this is an online game, send the move to the other player.
                 if (conn) {
                     conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
                 }
@@ -107,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             clearSelection();
         } else {
             const pieceData = boardState[row][col];
-            // This check allows piece selection in hotseat OR if it's your piece online.
             if (pieceData && (!playerNumber || pieceData.player === currentPlayer) && !pieceData.isTrapped) {
                 selectPiece(row, col);
             }
