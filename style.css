@@ -195,9 +195,7 @@ body {
     z-index: 1001;
 }
 
-/* --- Updated Networking UI Styles --- */
-
-/* --- Styles for New Multiplayer Button --- */
+/* --- Styles for Multiplayer UI --- */
 
 #multiplayer-btn {
     border: none;
@@ -212,18 +210,37 @@ body {
     margin-bottom: 20px;
 }
 
-/* This rule hides the network controls until the button is clicked */
 #network-controls {
-    display: none;
-    /* Changed from flex */
-    flex-direction: row;
+    display: flex;
+    /* This will be toggled by JS */
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
     margin-bottom: 20px;
     padding: 15px;
     background-color: #444;
     border-radius: 8px;
-    width: auto;
+    width: 90%;
+    max-width: 600px;
+}
+
+#host-info {
+    font-size: 1.1em;
+    word-break: break-all;
+    /* Prevents long codes from overflowing */
+}
+
+#player-id {
+    font-weight: bold;
+    color: #F1C40F;
+    background-color: #2c2c2c;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+#join-info {
+    display: flex;
+    gap: 10px;
 }
 
 #join-id-input {
@@ -232,27 +249,14 @@ body {
     color: #fff;
     padding: 5px 10px;
     border-radius: 4px;
-    text-align: center;
-    font-weight: bold;
 }
 
-#create-btn,
 #join-btn {
     border: none;
+    background-color: #3498DB;
     color: #fff;
     padding: 6px 15px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
 }
-
-#create-btn {
-    background-color: #2ECC71;
-}
-
-/* Green */
-#join-btn {
-    background-color: #3498DB;
-}
-
-/* Blue */

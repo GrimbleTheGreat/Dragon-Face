@@ -1,16 +1,18 @@
 /*
-This file contains all the game logic for Dragon Face, including the corrected
-multiplayer matchmaking and connection logic.
+This file contains all the game logic for Dragon Face. It defaults to a
+single-system (hotseat) game and includes an optional PeerJS-only
+multiplayer mode.
 */
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- UI and Board Elements ---
     const boardElement = document.getElementById('game-board');
     const statusDisplay = document.getElementById('status-display');
-    const createBtn = document.getElementById('create-btn');
+    const multiplayerBtn = document.getElementById('multiplayer-btn');
+    const networkControls = document.getElementById('network-controls');
+    const playerIdSpan = document.getElementById('player-id');
     const joinIdInput = document.getElementById('join-id-input');
     const joinBtn = document.getElementById('join-btn');
-    const networkControls = document.getElementById('network-controls');
 
     // --- Game State Variables ---
     let boardState = [];
@@ -20,81 +22,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGameOver = false;
     let lastFlippedPieceCoords = null;
 
-    // --- PeerJS & Firebase State ---
+    // --- PeerJS Networking State ---
     let peer;
     let conn;
-    let playerNumber;
+    let playerNumber; // Is undefined for hotseat, 1 or 2 for online
     let myPeerId;
 
-    // --- Firebase Initialization ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyDEA-wf...", // This is your unique key
-        authDomain: "dragon-face-game.firebaseapp.com",
-        databaseURL: "https://dragon-face-game-default-rtdb.firebaseio.com",
-        projectId: "dragon-face-game",
-        storageBucket: "dragon-face-game.appspot.com",
-        messagingSenderId: "1044326075620",
-        appId: "1:1044326075620:web:a409098aeed84ef7b930f1"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+    // --- Piece Definitions ---
+    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
+    const initialLayout = [[null, null, null, null, null, null, null, null, null], [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null], [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null], [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null], [null, null, null, null, null, null, null, null, null]];
 
-    // --- Matchmaking and Connection Logic ---
-
-    // This block contains the corrected logic for the 'Create Game' button.
-    createBtn.addEventListener('click', () => {
-        playerNumber = 1;
-        const gameCode = generateShortCode();
-        database.ref('rooms/' + gameCode).set({ hostId: myPeerId });
-
-        // This now correctly updates the UI as you requested.
-        joinIdInput.value = gameCode;
-        joinIdInput.readOnly = true;
-        createBtn.disabled = true;
-        joinBtn.style.display = 'none';
-
-        statusDisplay.textContent = "Share this code with a friend!";
-    });
-
-    joinBtn.addEventListener('click', () => {
-        const gameCode = joinIdInput.value.toUpperCase();
-        if (!gameCode) return;
-
-        database.ref('rooms/' + gameCode).once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const hostId = snapshot.val().hostId;
-                conn = peer.connect(hostId);
-
-                conn.on('open', () => {
-                    playerNumber = 2;
-                    networkControls.style.display = 'none';
-                    setupConnectionEvents();
-                    updateStatusDisplay();
-                });
-
-                database.ref('rooms/' + gameCode).remove();
-            } else {
-                alert("Game code not found!");
-            }
-        });
-    });
+    // --- Multiplayer Initialization ---
 
     multiplayerBtn.addEventListener('click', () => {
-        // When clicked, hide this button and show the network controls.
         multiplayerBtn.style.display = 'none';
         networkControls.style.display = 'flex';
-        statusDisplay.textContent = "Create or join a game to start!";
-
-        // Initialize the PeerJS connection only when multiplayer is chosen.
+        statusDisplay.textContent = "Connecting to server...";
         initializePeer();
     });
 
     function initializePeer() {
         peer = new Peer();
+        // HOST: When connection to server is open, get and display your ID.
         peer.on('open', (id) => {
             myPeerId = id;
+            playerNumber = 1; // The first person to click is the host (Player 1)
+            playerIdSpan.textContent = myPeerId;
+            statusDisplay.textContent = "Share your code with a friend!";
         });
-
+        // HOST: When a joiner connects to you.
         peer.on('connection', (connection) => {
             conn = connection;
             networkControls.style.display = 'none';
@@ -102,6 +58,20 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatusDisplay();
         });
     }
+
+    joinBtn.addEventListener('click', () => {
+        const joinId = joinIdInput.value;
+        if (joinId) {
+            conn = peer.connect(joinId);
+            // JOINER: When your connection to the host is successful.
+            conn.on('open', () => {
+                playerNumber = 2; // You successfully joined, you are Player 2
+                networkControls.style.display = 'none';
+                setupConnectionEvents();
+                updateStatusDisplay();
+            });
+        }
+    });
 
     function setupConnectionEvents() {
         if (conn) {
@@ -113,26 +83,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function generateShortCode() {
-        return Math.random().toString(36).substring(2, 7).toUpperCase();
-    }
-
     // --- Core Game Logic ---
-    // This section contains the complete, working single-player logic.
 
     function handleSquareClick(event) {
-        if (isGameOver || !playerNumber) return;
+        if (isGameOver) return;
+        // This check enforces turns ONLY if it's a multiplayer game.
         if (playerNumber && currentPlayer !== playerNumber) return;
 
         const square = event.target.closest('.square');
         if (!square) return;
-
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
 
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
+                // If this is an online game, send the move to the other player.
                 if (conn) {
                     conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
                 }
@@ -141,41 +107,14 @@ document.addEventListener('DOMContentLoaded', () => {
             clearSelection();
         } else {
             const pieceData = boardState[row][col];
+            // This check allows piece selection in hotseat OR if it's your piece online.
             if (pieceData && (!playerNumber || pieceData.player === currentPlayer) && !pieceData.isTrapped) {
                 selectPiece(row, col);
             }
         }
     }
 
-    function movePiece(startRow, startCol, move) {
-        const pieceToMove = boardState[startRow][startCol];
-        let capturedCoords = null;
-        if (move.type === 'capture') {
-            const jumpedPiece = boardState[move.jumped.r][move.jumped.c];
-            if (jumpedPiece.type === 'emperor') {
-                endGame(currentPlayer);
-                return;
-            }
-            jumpedPiece.player = currentPlayer;
-            capturedCoords = { r: move.jumped.r, c: move.jumped.c };
-        }
-        if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) {
-            pieceToMove.hasMoved = true;
-        }
-        if (!isPlayableSquare(move.r, move.c)) {
-            pieceToMove.isTrapped = true;
-        }
-        boardState[startRow][startCol] = null;
-        boardState[move.r][move.c] = pieceToMove;
-        checkForGovernorPromotion(move.r, pieceToMove);
-        currentPlayer = currentPlayer === 1 ? 2 : 1;
-        lastFlippedPieceCoords = capturedCoords;
-        renderPieces();
-        updateStatusDisplay();
-    }
-
-    const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false }; const P1A = { type: 'ambassador', player: 1, isTrapped: false }; const P1E = { type: 'emperor', player: 1, isTrapped: false }; const P2G = { type: 'governor', player: 2, hasMoved: false, isTrapped: false }; const P2A = { type: 'ambassador', player: 2, isTrapped: false }; const P2E = { type: 'emperor', player: 2, isTrapped: false };
-    const initialLayout = [[null, null, null, null, null, null, null, null, null], [null, P2A, P2A, P2A, P2E, P2A, P2A, P2A, null], [null, P2G, P2G, P2G, P2G, P2G, P2G, P2G, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null], [null, P1G, P1G, P1G, P1G, P1G, P1G, P1G, null], [null, P1A, P1A, P1A, P1E, P1A, P1A, P1A, null], [null, null, null, null, null, null, null, null, null]];
+    function movePiece(startRow, startCol, move) { const pieceToMove = boardState[startRow][startCol]; let capturedCoords = null; if (move.type === 'capture') { const jumpedPiece = boardState[move.jumped.r][move.jumped.c]; if (jumpedPiece.type === 'emperor') { endGame(currentPlayer); return; } jumpedPiece.player = currentPlayer; capturedCoords = { r: move.jumped.r, c: move.jumped.c }; } if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) { pieceToMove.hasMoved = true; } if (!isPlayableSquare(move.r, move.c)) { pieceToMove.isTrapped = true; } boardState[startRow][startCol] = null; boardState[move.r][move.c] = pieceToMove; checkForGovernorPromotion(move.r, pieceToMove); currentPlayer = currentPlayer === 1 ? 2 : 1; lastFlippedPieceCoords = capturedCoords; renderPieces(); updateStatusDisplay(); }
     function getGovernorMoves(r, c, player) { const moves = []; const piece = boardState[r][c]; const forwardDir = player === 1 ? -1 : 1; for (let dc = -1; dc <= 1; dc++) { const newR = r + forwardDir; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } } if (piece.hasMoved === false) { for (let dc = -1; dc <= 1; dc++) { const oneStepR = r + forwardDir; const oneStepC = c + dc; const twoStepsR = r + (2 * forwardDir); const twoStepsC = c + (2 * dc); if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) { moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' }); } } } for (let dc = -1; dc <= 1; dc++) { if (dc === 0) continue; const jumpedR = r + forwardDir; const jumpedC = c + dc; const jumpToR = r + (2 * forwardDir); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } return moves; }
     function getAmbassadorMoves(r, c) { const moves = []; const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }]; for (const dir of directions) { let newR = r + dir.r; let newC = c + dir.c; while (isPlayableSquare(newR, newC)) { if (boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); newR += dir.r; newC += dir.c; } else { break; } } const jumpedR = newR; const jumpedC = newC; const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const jumpToR = newR + dir.r; const jumpToC = newC + dir.c; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } }); } } return moves; }
     function getEmperorMoves(r, c) { const moves = []; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (dr === 0 && dc === 0) continue; const newR = r + dr; const newC = c + dc; if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) { moves.push({ r: newR, c: newC, type: 'move' }); } const jumpedR = newR; const jumpedC = newC; const jumpToR = r + (2 * dr); const jumpToC = c + (2 * dc); const jumpedPiece = boardState[jumpedR]?.[jumpedC]; const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c; if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) { moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } }); } } } return moves; }
@@ -189,16 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function isWithinBoardBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
     function initializeBoard() { boardState = JSON.parse(JSON.stringify(initialLayout)); boardElement.innerHTML = ''; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const square = document.createElement('div'); square.dataset.row = r; square.dataset.col = c; square.classList.add('square'); if (isPlayableSquare(r, c)) { if ((r + c) % 2 === 0) square.classList.add('dark-square'); else square.classList.add('light-square'); } else { if ((r + c) % 2 === 0) square.classList.add('sacrifice-dark'); else square.classList.add('sacrifice-light'); } boardElement.appendChild(square); } } renderPieces(); }
     function renderPieces() { document.querySelectorAll('.piece').forEach(p => p.remove()); for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const pieceData = boardState[r][c]; if (pieceData) { const pieceElement = document.createElement('div'); pieceElement.classList.add('piece', `player${pieceData.player}`, pieceData.type); const square = document.querySelector(`.square[data-row='${r}'][data-col='${c}']`); square.appendChild(pieceElement); } } } }
-
-    function updateStatusDisplay() {
-        if (!playerNumber) {
-            statusDisplay.textContent = "Create or join a game to start!";
-            return;
-        }
-        statusDisplay.textContent = `Player ${currentPlayer}'s Turn`;
-        statusDisplay.classList.remove('player1-color', 'player2-color');
-        statusDisplay.classList.add(`player${currentPlayer}-color`);
-    }
+    function updateStatusDisplay() { statusDisplay.textContent = `Player ${currentPlayer}'s Turn`; statusDisplay.classList.remove('player1-color', 'player2-color'); statusDisplay.classList.add(`player${currentPlayer}-color`); }
 
     // --- Game Start ---
     initializeBoard();
