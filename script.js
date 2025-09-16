@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFlippedPieceCoords = null;
 
     // --- Piece Definitions ---
-    // The 'canDoubleMove' property has been removed from Governors.
     const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false };
     const P1A = { type: 'ambassador', player: 1, isTrapped: false };
     const P1E = { type: 'emperor', player: 1, isTrapped: false };
@@ -42,15 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     // --- Core Game Functions ---
-
     function handleSquareClick(event) {
         if (isGameOver) return;
         const square = event.target.closest('.square');
         if (!square) return;
-
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
-
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
@@ -68,7 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function movePiece(startRow, startCol, move) {
         const pieceToMove = boardState[startRow][startCol];
         let capturedCoords = null;
-
         if (move.type === 'capture') {
             const jumpedPiece = boardState[move.jumped.r][move.jumped.c];
             if (jumpedPiece.type === 'emperor') {
@@ -78,18 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
             jumpedPiece.player = currentPlayer;
             capturedCoords = { r: move.jumped.r, c: move.jumped.c };
         }
-
         if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) {
             pieceToMove.hasMoved = true;
         }
-
         if (!isPlayableSquare(move.r, move.c)) {
             pieceToMove.isTrapped = true;
         }
-
         boardState[startRow][startCol] = null;
         boardState[move.r][move.c] = pieceToMove;
-
         checkForGovernorPromotion(move.r, pieceToMove);
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         lastFlippedPieceCoords = capturedCoords;
@@ -98,14 +89,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Move Calculation Logic ---
-
-    // This block has been simplified to remove all logic related to the incorrect 'canDoubleMove' power-up.
     function getGovernorMoves(r, c, player) {
         const moves = [];
         const piece = boardState[r][c];
         const forwardDir = player === 1 ? -1 : 1;
-
-        // One-space forward moves
         for (let dc = -1; dc <= 1; dc++) {
             const newR = r + forwardDir;
             const newC = c + dc;
@@ -113,8 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 moves.push({ r: newR, c: newC, type: 'move' });
             }
         }
-
-        // Two-space first move
         if (piece.hasMoved === false) {
             for (let dc = -1; dc <= 1; dc++) {
                 const oneStepR = r + forwardDir;
@@ -126,8 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        // Diagonal captures
         for (let dc = -1; dc <= 1; dc++) {
             if (dc === 0) continue;
             const jumpedR = r + forwardDir;
@@ -136,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const jumpToC = c + (2 * dc);
             const jumpedPiece = boardState[jumpedR]?.[jumpedC];
             const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
             if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                 moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
             }
@@ -146,15 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getAmbassadorMoves(r, c) {
         const moves = [];
-        const directions = [
-            { r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 },
-            { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }
-        ];
-
+        const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }];
         for (const dir of directions) {
             let newR = r + dir.r;
             let newC = c + dir.c;
-
             while (isPlayableSquare(newR, newC)) {
                 if (boardState[newR][newC] === null) {
                     moves.push({ r: newR, c: newC, type: 'move' });
@@ -164,14 +141,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 }
             }
-
             const jumpedR = newR;
             const jumpedC = newC;
             const jumpedPiece = boardState[jumpedR]?.[jumpedC];
             const jumpToR = newR + dir.r;
             const jumpToC = newC + dir.c;
             const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
             if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                 moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } });
             }
@@ -186,18 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dr === 0 && dc === 0) continue;
                 const newR = r + dr;
                 const newC = c + dc;
-
                 if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
                     moves.push({ r: newR, c: newC, type: 'move' });
                 }
-
                 const jumpedR = newR;
                 const jumpedC = newC;
                 const jumpToR = r + (2 * dr);
                 const jumpToC = c + (2 * dc);
                 const jumpedPiece = boardState[jumpedR]?.[jumpedC];
                 const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
-
                 if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                     moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
                 }
@@ -206,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return moves;
     }
 
-    // --- (The rest of the file is unchanged) ---
     function selectPiece(row, col) {
         clearSelection();
         selectedPiece = { row, col, piece: boardState[row][col] };
