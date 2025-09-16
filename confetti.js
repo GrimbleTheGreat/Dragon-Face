@@ -50,6 +50,7 @@ function updateConfetti() {
         piece.y += piece.speed;
         piece.tilt += piece.tiltSpeed;
         if (piece.y > canvas.height) {
+            // Reset piece when it goes off screen
             piece.x = Math.random() * canvas.width;
             piece.y = -20;
         }
