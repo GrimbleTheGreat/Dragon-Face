@@ -4,6 +4,69 @@ managing player turns, calculating piece moves, and updating the game state.
 */
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --- UI and Board Elements ---
+    const multiplayerBtn = document.getElementById('multiplayer-btn');
+    const networkControls = document.getElementById('network-controls');
+    const playerIdSpan = document.getElementById('player-id');
+    const joinIdInput = document.getElementById('join-id-input');
+    const joinBtn = document.getElementById('join-btn');
+
+    // --- PeerJS Networking State ---
+    let peer;
+    let conn;
+    let playerNumber; // Is undefined for hotseat, 1 or 2 for online
+
+    // --- Multiplayer Initialization ---
+
+    multiplayerBtn.addEventListener('click', () => {
+        multiplayerBtn.style.display = 'none';
+        networkControls.style.display = 'flex';
+        statusDisplay.textContent = "Connecting to server...";
+        initializePeer();
+    });
+
+    function initializePeer() {
+        peer = new Peer();
+        // HOST: When connection to server is open, get and display your ID.
+        peer.on('open', (id) => {
+            playerNumber = 1; // The first person to click is the host (Player 1)
+            playerIdSpan.textContent = id;
+            statusDisplay.textContent = "Share your code with a friend!";
+        });
+        // HOST: When a joiner connects to you.
+        peer.on('connection', (connection) => {
+            conn = connection;
+            networkControls.style.display = 'none';
+            setupConnectionEvents();
+            updateStatusDisplay();
+        });
+    }
+
+    joinBtn.addEventListener('click', () => {
+        const joinId = joinIdInput.value;
+        if (joinId) {
+            conn = peer.connect(joinId);
+            // JOINER: When your connection to the host is successful.
+            conn.on('open', () => {
+                playerNumber = 2; // You successfully joined, you are Player 2
+                networkControls.style.display = 'none';
+                setupConnectionEvents();
+                updateStatusDisplay();
+            });
+        }
+    });
+
+    function setupConnectionEvents() {
+        if (conn) {
+            conn.on('data', (data) => {
+                if (data.type === 'move') {
+                    movePiece(data.move.startRow, data.move.startCol, data.move.move);
+                }
+            });
+        }
+    }
+
     // --- Game Board and Display Elements ---
     const boardElement = document.getElementById('game-board');
     const statusDisplay = document.getElementById('status-display');
@@ -42,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Game Functions ---
     function handleSquareClick(event) {
+        if (playerNumber && currentPlayer !== playerNumber) return;
         if (isGameOver) return;
         const square = event.target.closest('.square');
         if (!square) return;
@@ -55,10 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
             clearSelection();
         } else {
             const pieceData = boardState[row][col];
-            if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) {
+            if (pieceData && (!playerNumber || pieceData.player === currentPlayer) && !pieceData.isTrapped) {
                 selectPiece(row, col);
             }
         }
+    }
+
+    if (conn) {
+        conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
     }
 
     function movePiece(startRow, startCol, move) {
