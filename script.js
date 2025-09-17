@@ -412,7 +412,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function endGame(winner) {
-        // Add a guard to prevent this from running multiple times
         if (isGameOver) return;
         isGameOver = true;
 
@@ -420,23 +419,38 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.id = 'game-over-overlay';
         const box = document.createElement('div');
         box.className = 'game-over-box';
+
         const message = document.createElement('h1');
         message.textContent = `Player ${winner} Won!!!`;
         message.classList.add(`player${winner}-color`);
-        const button = document.createElement('button');
-        button.textContent = 'Play Again';
 
-        button.onclick = () => {
-            // In an online game, tell the other player you want to reset
+        // Button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'game-over-buttons';
+
+        // Play Again Button
+        const playAgainButton = document.createElement('button');
+        playAgainButton.textContent = 'Play Again';
+        playAgainButton.onclick = () => {
             if (conn) {
                 conn.send({ type: 'reset' });
             }
-            // Reset your own game
             resetGame();
         };
 
+        // Quit Button
+        const quitButton = document.createElement('button');
+        quitButton.textContent = 'Quit';
+        quitButton.id = 'quit-btn';
+        quitButton.onclick = () => {
+            location.reload(); // Reloads the page to go "home"
+        };
+
+        buttonContainer.appendChild(playAgainButton);
+        buttonContainer.appendChild(quitButton);
+
         box.appendChild(message);
-        box.appendChild(button);
+        box.appendChild(buttonContainer);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
         startConfetti();
