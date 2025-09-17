@@ -174,16 +174,34 @@ body {
     margin-bottom: 20px;
 }
 
+.game-over-buttons {
+    display: flex;
+    flex-direction: column;
+    /* This is the change */
+    align-items: center;
+    /* To center the buttons in the column */
+    gap: 15px;
+    /* Adjusted gap for vertical spacing */
+}
+
 .game-over-box button {
     padding: 10px 20px;
     font-size: 1.2em;
     cursor: pointer;
     border: none;
     border-radius: 5px;
+    font-weight: bold;
     background-color: #F1C40F;
     color: #333;
-    font-weight: bold;
+    width: 150px;
+    /* Giving the buttons a fixed width for a cleaner look */
 }
+
+#quit-btn {
+    background-color: #E74C3C;
+    color: #fff;
+}
+
 
 #confetti-canvas {
     position: fixed;
