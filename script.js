@@ -61,11 +61,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (conn) {
             conn.on('data', (data) => {
                 if (data.type === 'move') {
+                    // Note: In a more complex game, you'd want validation here.
                     movePiece(data.move.startRow, data.move.startCol, data.move.move);
+                } else if (data.type === 'promotion') {
+                    performPromotion(data.move.row, data.move.col);
                 }
             });
         }
     }
+
 
     // --- Game Board and Display Elements ---
     const boardElement = document.getElementById('game-board');
@@ -80,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let validMoves = [];
     let isGameOver = false;
     let lastFlippedPieceCoords = null;
-    let promotionState = null;
+    let promotionState = null; // NEW: Holds state for governor promotion/rescue
 
     // --- Piece Definitions ---
     const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false };
@@ -106,111 +110,143 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Game Functions ---
     function handleSquareClick(event) {
+        // Prevent interaction if it's an online game and not your turn
         if (playerNumber && currentPlayer !== playerNumber) return;
         if (isGameOver) return;
+
+        const square = event.target.closest('.square');
+        if (!square) return;
+
+        const row = parseInt(square.dataset.row);
+        const col = parseInt(square.dataset.col);
+
+        // NEW: If we are in a promotion/rescue state, handle that separately
         if (promotionState) {
             handlePromotionClick(row, col);
             return;
         }
-        const square = event.target.closest('.square');
-        if (!square) return;
-        const row = parseInt(square.dataset.row);
-        const col = parseInt(square.dataset.col);
+
         if (selectedPiece) {
+            // Attempt to move the selected piece
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
-                if (conn) {
-                    conn.send(
-                        {
-                            type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move }
-                        }
-                    );
+                if (conn) { // Send move data if online
+                    conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
                 }
                 movePiece(selectedPiece.row, selectedPiece.col, move);
             }
             clearSelection();
         } else {
+            // Attempt to select a piece
             const pieceData = boardState[row][col];
-            if (pieceData && (!playerNumber || pieceData.player === currentPlayer) && !pieceData.isTrapped) {
+            if (pieceData && pieceData.player === currentPlayer && !pieceData.isTrapped) {
                 selectPiece(row, col);
             }
         }
     }
 
+
     function movePiece(startRow, startCol, move) {
         const pieceToMove = boardState[startRow][startCol];
         let capturedCoords = null;
+
+        // Handle piece capture
         if (move.type === 'capture') {
             const jumpedPiece = boardState[move.jumped.r][move.jumped.c];
+            // Check for Emperor capture (win condition)
             if (jumpedPiece.type === 'emperor') {
                 endGame(currentPlayer);
                 return;
             }
+            // Flip the captured piece's player
             jumpedPiece.player = currentPlayer;
             capturedCoords = { r: move.jumped.r, c: move.jumped.c };
         }
+
+        // Update governor's 'hasMoved' status
         if (pieceToMove.type === 'governor' && pieceToMove.hasMoved === false) {
             pieceToMove.hasMoved = true;
         }
+
+        // Check if the piece moved into the sacrifice zone
         if (!isPlayableSquare(move.r, move.c)) {
             pieceToMove.isTrapped = true;
         }
+
+        // Update the board state with the new piece position
         boardState[startRow][startCol] = null;
         boardState[move.r][move.c] = pieceToMove;
+
+        // Check if this move triggers the promotion/rescue mechanic
         const enteredPromotion = handleGovernorPromotion(move.r, move.c, pieceToMove);
         if (enteredPromotion) {
-            renderPieces();
-            return;
+            renderPieces(); // Re-render to show the governor on the backline
+            highlightValidMoves(); // Highlight potential swaps
+            return; // Stop here and wait for the player to choose an ambassador
         }
+
+        // If no promotion, proceed to the next turn as normal
         currentPlayer = currentPlayer === 1 ? 2 : 1;
-        lastFlippedPieceCoords = capturedCoords;
+        lastFlippedPieceCoords = capturedCoords; // For immunity rule
         renderPieces();
         updateStatusDisplay();
     }
 
-    // --- Special Game Mechanics ---
 
-    // This handles clicks ONLY when the game is in 'rescue mode'.
+    // --- Special Game Mechanics (NEW) ---
+
+    // This handles clicks ONLY when the game is in the governor promotion/rescue state.
     function handlePromotionClick(row, col) {
+        // Find all trapped ambassadors for the current player
         const trappedAmbassadors = findTrappedAmbassadors(currentPlayer);
+        // Check if the clicked square is a valid ambassador to rescue
         const isClickValid = trappedAmbassadors.some(ambassador => ambassador.r === row && ambassador.c === col);
 
         if (isClickValid) {
-            // It's a valid click, so perform the swap.
-            const govCoords = promotionState.governorCoords;
-            const governorPiece = boardState[govCoords.r][govCoords.c];
-            const ambassadorPiece = boardState[row][col];
-
-            // Activate the Ambassador and trap the Governor
-            ambassadorPiece.isTrapped = false;
-            governorPiece.isTrapped = true;
-
-            // Swap their positions on the board
-            boardState[govCoords.r][govCoords.c] = ambassadorPiece;
-            boardState[row][col] = governorPiece;
-
-            // Exit rescue mode and end the turn.
-            clearSelection();
-            promotionState = null;
-            currentPlayer = currentPlayer === 1 ? 2 : 1;
-            renderPieces();
-            updateStatusDisplay();
+            if (conn) {
+                conn.send({ type: 'promotion', move: { row: row, col: col } });
+            }
+            performPromotion(row, col);
         }
     }
 
-    // This function checks for the promotion condition and activates 'rescue mode'.
-    // It replaces the old checkForGovernorPromotion function.
+    // This function contains the logic for the ambassador/governor swap.
+    function performPromotion(row, col) {
+        const govCoords = promotionState.governorCoords;
+        const governorPiece = boardState[govCoords.r][govCoords.c];
+        const ambassadorPiece = boardState[row][col];
+
+        // Untrap the ambassador and trap the governor
+        ambassadorPiece.isTrapped = false;
+        governorPiece.isTrapped = true;
+
+        // Swap their positions on the board
+        boardState[govCoords.r][govCoords.c] = ambassadorPiece;
+        boardState[row][col] = governorPiece;
+
+        // Exit the rescue state and end the "extra" turn
+        clearSelection(); // This also clears the green highlights
+        promotionState = null;
+        currentPlayer = currentPlayer === 1 ? 2 : 1; // Now switch to the next player
+        renderPieces();
+        updateStatusDisplay();
+    }
+
+
+    // This function checks for the promotion condition and activates the rescue state.
     function handleGovernorPromotion(endRow, endCol, movedPiece) {
         if (movedPiece.type !== 'governor') return false;
 
+        // Define the promotion row for each player
         const promotionRow = movedPiece.player === 1 ? 1 : 9;
+
         if (endRow === promotionRow) {
+            // Check if there are any ambassadors to rescue
             const trappedAmbassadors = findTrappedAmbassadors(movedPiece.player);
             if (trappedAmbassadors.length > 0) {
                 // Enter rescue mode!
                 promotionState = { governorCoords: { r: endRow, c: endCol } };
                 validMoves = trappedAmbassadors; // Use validMoves to store rescue targets
-                highlightValidMoves();
                 statusDisplay.textContent = `Player ${movedPiece.player}, choose an Ambassador to rescue!`;
                 return true; // Signal that we entered rescue mode
             }
@@ -218,25 +254,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return false; // No rescue occurred
     }
 
-    // This is to find all of a player's trapped Ambassadors.
+    // This helper function finds all of a player's trapped Ambassadors.
     function findTrappedAmbassadors(player) {
         const ambassadors = [];
-        for (let r = 0; r < 11; r++) {
-            for (let c = 0; c < 9; c++) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
                 const piece = boardState[r][c];
                 if (piece && piece.player === player && piece.type === 'ambassador' && piece.isTrapped) {
-                    ambassadors.push({ r, c });
+                    ambassadors.push({ r, c }); // Add coordinates to the list
                 }
             }
         }
         return ambassadors;
     }
 
+
     // --- Move Calculation Logic ---
     function getGovernorMoves(r, c, player) {
         const moves = [];
         const piece = boardState[r][c];
         const forwardDir = player === 1 ? -1 : 1;
+
+        // Standard 1-space forward moves (straight and diagonal)
         for (let dc = -1; dc <= 1; dc++) {
             const newR = r + forwardDir;
             const newC = c + dc;
@@ -244,25 +283,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 moves.push({ r: newR, c: newC, type: 'move' });
             }
         }
+        // Special 2-space first move
         if (piece.hasMoved === false) {
             for (let dc = -1; dc <= 1; dc++) {
                 const oneStepR = r + forwardDir;
                 const oneStepC = c + dc;
                 const twoStepsR = r + (2 * forwardDir);
                 const twoStepsC = c + (2 * dc);
+                // Can only move two steps if the path is clear
                 if (isPlayableSquare(twoStepsR, twoStepsC) && boardState[oneStepR][oneStepC] === null && boardState[twoStepsR][twoStepsC] === null) {
                     moves.push({ r: twoStepsR, c: twoStepsC, type: 'move' });
                 }
             }
         }
+        // Capture moves (diagonal jumps only)
         for (let dc = -1; dc <= 1; dc++) {
-            if (dc === 0) continue;
+            if (dc === 0) continue; // Governors can't capture straight ahead
             const jumpedR = r + forwardDir;
             const jumpedC = c + dc;
             const jumpToR = r + (2 * forwardDir);
             const jumpToC = c + (2 * dc);
+
             const jumpedPiece = boardState[jumpedR]?.[jumpedC];
             const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
+
             if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                 moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
             }
@@ -273,7 +317,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function getAmbassadorMoves(r, c) {
         const moves = [];
         const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }];
+
         for (const dir of directions) {
+            // Standard moves
             let newR = r + dir.r;
             let newC = c + dir.c;
             while (isPlayableSquare(newR, newC)) {
@@ -282,15 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     newR += dir.r;
                     newC += dir.c;
                 } else {
-                    break;
+                    break; // Path blocked
                 }
             }
+            // Capture moves (jump over the blocking piece)
             const jumpedR = newR;
             const jumpedC = newC;
             const jumpedPiece = boardState[jumpedR]?.[jumpedC];
             const jumpToR = newR + dir.r;
             const jumpToC = newC + dir.c;
             const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
+
             if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                 moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: newR, c: newC } });
             }
@@ -303,17 +351,21 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
                 if (dr === 0 && dc === 0) continue;
+                // Standard 1-space move
                 const newR = r + dr;
                 const newC = c + dc;
                 if (isPlayableSquare(newR, newC) && boardState[newR][newC] === null) {
                     moves.push({ r: newR, c: newC, type: 'move' });
                 }
+                // Capture move (jump)
                 const jumpedR = newR;
                 const jumpedC = newC;
                 const jumpToR = r + (2 * dr);
                 const jumpToC = c + (2 * dc);
+
                 const jumpedPiece = boardState[jumpedR]?.[jumpedC];
                 const isImmune = lastFlippedPieceCoords && jumpedR === lastFlippedPieceCoords.r && jumpedC === lastFlippedPieceCoords.c;
+
                 if (!isImmune && isWithinBoardBounds(jumpToR, jumpToC) && boardState[jumpToR][jumpToC] === null && jumpedPiece && jumpedPiece.player !== currentPlayer) {
                     moves.push({ r: jumpToR, c: jumpToC, type: 'capture', jumped: { r: jumpedR, c: jumpedC } });
                 }
@@ -322,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return moves;
     }
 
+    // --- Selection and Highlighting ---
     function selectPiece(row, col) {
         clearSelection();
         selectedPiece = { row, col, piece: boardState[row][col] };
@@ -348,6 +401,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getValidMoves(r, c) {
+        const piece = boardState[r][c];
+        if (!piece) return [];
+        switch (piece.type) {
+            case 'emperor': return getEmperorMoves(r, c);
+            case 'governor': return getGovernorMoves(r, c, piece.player);
+            case 'ambassador': return getAmbassadorMoves(r, c);
+            default: return [];
+        }
+    }
+
+    // --- Utility and Rendering Functions ---
     function endGame(winner) {
         isGameOver = true;
         const overlay = document.createElement('div');
@@ -364,18 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         box.appendChild(button);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
-        startConfetti();
-    }
-
-    function getValidMoves(r, c) {
-        const piece = boardState[r][c];
-        if (!piece) return [];
-        switch (piece.type) {
-            case 'emperor': return getEmperorMoves(r, c);
-            case 'governor': return getGovernorMoves(r, c, piece.player);
-            case 'ambassador': return getAmbassadorMoves(r, c);
-            default: return [];
-        }
+        startConfetti(); // From confetti.js
     }
 
     function isPlayableSquare(r, c) { return r > 0 && r < 10 && c > 0 && c < 8; }
@@ -393,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isPlayableSquare(r, c)) {
                     if ((r + c) % 2 === 0) square.classList.add('dark-square');
                     else square.classList.add('light-square');
-                } else {
+                } else { // Sacrifice zone
                     if ((r + c) % 2 === 0) square.classList.add('sacrifice-dark');
                     else square.classList.add('sacrifice-light');
                 }
@@ -404,7 +458,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPieces() {
+        // Clear existing pieces from the board
         document.querySelectorAll('.piece').forEach(p => p.remove());
+        // Draw pieces based on the current board state
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const pieceData = boardState[r][c];
@@ -424,7 +480,9 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDisplay.classList.add(`player${currentPlayer}-color`);
     }
 
+    // --- Game Start ---
     initializeBoard();
     boardElement.addEventListener('click', handleSquareClick);
     updateStatusDisplay();
 });
+
