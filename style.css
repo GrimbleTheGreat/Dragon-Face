@@ -93,41 +93,59 @@ body {
     background-color: #696969;
 }
 
+
 .piece {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1em;
-    font-weight: bold;
+    width: 60px;
+    height: 60px;
     cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     border: 3px solid transparent;
+    border-radius: 50%;
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
-.player1 {
-    background-color: #E74C3C;
-    color: #fff;
-}
-
+.player1,
 .player2 {
-    background-color: #3498DB;
-    color: #fff;
+    background-color: transparent;
+    box-shadow: none;
 }
 
-.emperor::before {
-    content: 'E';
-}
-
-.ambassador::before {
-    content: 'A';
-}
-
+.emperor::before,
+.ambassador::before,
 .governor::before {
-    content: 'G';
+    content: '';
 }
+
+/* Player 1 (White Pieces) */
+.player1.emperor {
+    background-image: url('images/White-emperor.png');
+}
+
+.player1.governor {
+    background-image: url('images/white-governor.png');
+}
+
+.player1.ambassador {
+    background-image: url('images/white-ambassador.png');
+}
+
+/* Player 2 (Black Pieces) */
+.player2.emperor {
+    background-image: url('images/black-emperor.png');
+}
+
+.player2.governor {
+    background-image: url('images/black-governor.png');
+}
+
+.player2.ambassador {
+    background-image: url('images/black-ambassador.png');
+}
+
+/* --- === CODE TO CHANGE ENDS HERE === --- */
+
 
 .selected {
     border-color: #F1C40F;
@@ -140,11 +158,11 @@ body {
 }
 
 .player1-color {
-    color: #E74C3C;
+    color: #d8b993;
 }
 
 .player2-color {
-    color: #3498DB;
+    color: #ab0a0a;
 }
 
 #game-over-overlay {
@@ -177,11 +195,8 @@ body {
 .game-over-buttons {
     display: flex;
     flex-direction: column;
-    /* This is the change */
     align-items: center;
-    /* To center the buttons in the column */
     gap: 15px;
-    /* Adjusted gap for vertical spacing */
 }
 
 .game-over-box button {
@@ -194,7 +209,6 @@ body {
     background-color: #F1C40F;
     color: #333;
     width: 150px;
-    /* Giving the buttons a fixed width for a cleaner look */
 }
 
 #quit-btn {
@@ -218,7 +232,6 @@ body {
 #multiplayer-btn {
     border: none;
     background-color: #9b59b6;
-    /* Purple */
     color: #fff;
     padding: 10px 25px;
     border-radius: 5px;
@@ -230,7 +243,6 @@ body {
 
 #network-controls {
     display: flex;
-    /* Toggled by JS */
     flex-direction: column;
     align-items: center;
     gap: 15px;
