@@ -19,6 +19,17 @@ function startConfetti() {
     animateConfetti();
 }
 
+function stopConfetti() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+    // Clear any remaining confetti from the canvas
+    if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+
 function createConfettiPiece() {
     const colors = ['#E74C3C', '#3498DB', '#F1C40F', '#2ECC71', '#9B59B6', '#FFFFFF'];
     return {

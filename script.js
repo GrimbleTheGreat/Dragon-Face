@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     movePiece(data.move.startRow, data.move.startCol, data.move.move);
                 } else if (data.type === 'promotion') {
                     performPromotion(data.move.row, data.move.col);
+                } else if (data.type === 'reset') {
+                    resetGame(true); // Reset the game when the peer requests it
                 }
             });
         }
@@ -120,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
 
-        // NEW: If we are in a promotion/rescue state, handle that separately
+        // If we are in a promotion/rescue state, handle that separately
         if (promotionState) {
             handlePromotionClick(row, col);
             return;
@@ -135,7 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 movePiece(selectedPiece.row, selectedPiece.col, move);
             }
-            clearSelection();
+
+            // If the move did NOT result in a promotion, clear the selection.
+            // Otherwise, leave the valid moves (the rescue targets) highlighted.
+            if (!promotionState) {
+                clearSelection();
+            }
+
         } else {
             // Attempt to select a piece
             const pieceData = boardState[row][col];
@@ -193,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Special Game Mechanics (NEW) ---
+    // --- Special Game Mechanics ---
 
     // This handles clicks ONLY when the game is in the governor promotion/rescue state.
     function handlePromotionClick(row, col) {
@@ -413,6 +421,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Utility and Rendering Functions ---
+
+    function resetGame(initiatedByPeer = false) {
+        // Reset all game state variables to their defaults
+        boardState = JSON.parse(JSON.stringify(initialLayout));
+        currentPlayer = 1;
+        selectedPiece = null;
+        validMoves = [];
+        isGameOver = false;
+        lastFlippedPieceCoords = null;
+        promotionState = null;
+
+        // Remove the game over screen
+        const overlay = document.getElementById('game-over-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+
+        // Stop the confetti animation
+        if (typeof stopConfetti === 'function') {
+            stopConfetti();
+        }
+
+        // Redraw the board and update the status
+        renderPieces();
+        updateStatusDisplay();
+
+        // If this player clicked the button, tell the other player to reset too
+        if (conn && !initiatedByPeer) {
+            conn.send({ type: 'reset' });
+        }
+    }
+
+
     function endGame(winner) {
         isGameOver = true;
         const overlay = document.createElement('div');
@@ -424,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         message.classList.add(`player${winner}-color`);
         const button = document.createElement('button');
         button.textContent = 'Play Again';
-        button.onclick = () => location.reload();
+        button.onclick = () => resetGame(false); // Call resetGame instead of reloading
         box.appendChild(message);
         box.appendChild(button);
         overlay.appendChild(box);
