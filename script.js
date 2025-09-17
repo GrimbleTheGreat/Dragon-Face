@@ -26,16 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initializePeer();
     });
 
-    function setupConnectionEvents() {
-        if (conn) {
-            conn.on('data', (data) => {
-                if (data.type === 'move') {
-                    movePiece(data.move.startRow, data.move.startCol, data.move.move);
-                }
-            });
-        }
-    }
-
     function initializePeer() {
         peer = new Peer();
         // HOST: When connection to server is open, get and display your ID.
@@ -66,6 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
+
+    function setupConnectionEvents() {
+        if (conn) {
+            conn.on('data', (data) => {
+                if (data.type === 'move') {
+                    movePiece(data.move.startRow, data.move.startCol, data.move.move);
+                }
+            });
+        }
+    }
 
     // --- Game Board and Display Elements ---
     const boardElement = document.getElementById('game-board');
