@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let validMoves = [];
     let isGameOver = false;
     let lastFlippedPieceCoords = null;
+    let promotionState = null;
 
     // --- Piece Definitions ---
     const P1G = { type: 'governor', player: 1, hasMoved: false, isTrapped: false };
@@ -107,6 +108,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSquareClick(event) {
         if (playerNumber && currentPlayer !== playerNumber) return;
         if (isGameOver) return;
+        if (promotionState) {
+            handlePromotionClick(row, col);
+            return;
+        }
         const square = event.target.closest('.square');
         if (!square) return;
         const row = parseInt(square.dataset.row);
@@ -152,11 +157,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         boardState[startRow][startCol] = null;
         boardState[move.r][move.c] = pieceToMove;
-        checkForGovernorPromotion(move.r, pieceToMove);
+        const enteredPromotion = handleGovernorPromotion(move.r, move.c, pieceToMove);
+        if (enteredPromotion) {
+            renderPieces();
+            return;
+        }
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         lastFlippedPieceCoords = capturedCoords;
         renderPieces();
         updateStatusDisplay();
+    }
+
+    // --- Special Game Mechanics ---
+
+    // This handles clicks ONLY when the game is in 'rescue mode'.
+    function handlePromotionClick(row, col) {
+        const trappedAmbassadors = findTrappedAmbassadors(currentPlayer);
+        const isClickValid = trappedAmbassadors.some(ambassador => ambassador.r === row && ambassador.c === col);
+
+        if (isClickValid) {
+            // It's a valid click, so perform the swap.
+            const govCoords = promotionState.governorCoords;
+            const governorPiece = boardState[govCoords.r][govCoords.c];
+            const ambassadorPiece = boardState[row][col];
+
+            // Activate the Ambassador and trap the Governor
+            ambassadorPiece.isTrapped = false;
+            governorPiece.isTrapped = true;
+
+            // Swap their positions on the board
+            boardState[govCoords.r][govCoords.c] = ambassadorPiece;
+            boardState[row][col] = governorPiece;
+
+            // Exit rescue mode and end the turn.
+            clearSelection();
+            promotionState = null;
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            renderPieces();
+            updateStatusDisplay();
+        }
+    }
+
+    // This function checks for the promotion condition and activates 'rescue mode'.
+    // It replaces the old checkForGovernorPromotion function.
+    function handleGovernorPromotion(endRow, endCol, movedPiece) {
+        if (movedPiece.type !== 'governor') return false;
+
+        const promotionRow = movedPiece.player === 1 ? 1 : 9;
+        if (endRow === promotionRow) {
+            const trappedAmbassadors = findTrappedAmbassadors(movedPiece.player);
+            if (trappedAmbassadors.length > 0) {
+                // Enter rescue mode!
+                promotionState = { governorCoords: { r: endRow, c: endCol } };
+                validMoves = trappedAmbassadors; // Use validMoves to store rescue targets
+                highlightValidMoves();
+                statusDisplay.textContent = `Player ${movedPiece.player}, choose an Ambassador to rescue!`;
+                return true; // Signal that we entered rescue mode
+            }
+        }
+        return false; // No rescue occurred
+    }
+
+    // This is to find all of a player's trapped Ambassadors.
+    function findTrappedAmbassadors(player) {
+        const ambassadors = [];
+        for (let r = 0; r < 11; r++) {
+            for (let c = 0; c < 9; c++) {
+                const piece = boardState[r][c];
+                if (piece && piece.player === player && piece.type === 'ambassador' && piece.isTrapped) {
+                    ambassadors.push({ r, c });
+                }
+            }
+        }
+        return ambassadors;
     }
 
     // --- Move Calculation Logic ---
@@ -302,21 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'governor': return getGovernorMoves(r, c, piece.player);
             case 'ambassador': return getAmbassadorMoves(r, c);
             default: return [];
-        }
-    }
-
-    function checkForGovernorPromotion(endRow, movedPiece) {
-        if (movedPiece.type !== 'governor') return;
-        const promotionRow = movedPiece.player === 1 ? 1 : 9;
-        if (endRow === promotionRow) {
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const piece = boardState[r][c];
-                    if (piece && piece.player === movedPiece.player && piece.type === 'ambassador' && piece.isTrapped) {
-                        piece.isTrapped = false;
-                    }
-                }
-            }
         }
     }
 
