@@ -114,6 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedPiece) {
             const move = validMoves.find(m => m.r === row && m.c === col);
             if (move) {
+                if (conn) {
+                    conn.send(
+                        {
+                            type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move }
+                        }
+                    );
+                }
                 movePiece(selectedPiece.row, selectedPiece.col, move);
             }
             clearSelection();
@@ -123,10 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectPiece(row, col);
             }
         }
-    }
-
-    if (conn) {
-        conn.send({ type: 'move', move: { startRow: selectedPiece.row, startCol: selectedPiece.col, move: move } });
     }
 
     function movePiece(startRow, startCol, move) {
