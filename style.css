@@ -9,6 +9,18 @@ body {
     padding: 20px;
 }
 
+a {
+    color: #c5bfa9;
+}
+
+a:hover {
+    color: #F1C40F;
+}
+
+a:visited {
+    color: #9b59b6;
+}
+
 .main-container {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
