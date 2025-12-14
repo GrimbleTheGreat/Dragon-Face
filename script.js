@@ -508,3 +508,29 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatusDisplay();
 });
 
+document.getElementById('copy-btn').addEventListener('click', async () => {
+    const codeSpan = document.getElementById('player-id');
+    const copyBtn = document.getElementById('copy-btn');
+    const codeText = codeSpan.innerText;
+
+    // Prevent copying if the code is still loading
+    if (codeText === 'loading...' || !codeText) return;
+
+    try {
+        // Write text to clipboard
+        await navigator.clipboard.writeText(codeText);
+
+        // Visual feedback: Change icon to checkmark
+        const originalText = copyBtn.innerText;
+        copyBtn.innerText = '✅';
+
+        // Revert back after 2 seconds
+        setTimeout(() => {
+            copyBtn.innerText = originalText;
+        }, 2000);
+
+    } catch (err) {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy code manually.');
+    }
+});
