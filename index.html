@@ -8,9 +8,9 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
+            margin: auto 0;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: #e09c49;
         }
 
         .container {
@@ -18,6 +18,8 @@
             gap: 20px;
             justify-content: center;
             flex-wrap: wrap;
+            align-items: center;
+            min-height: 90vh;
         }
 
         .card {
@@ -27,6 +29,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             transition: transform 0.3s;
+            vertical-align: middle;
         }
 
         .card:hover {
@@ -68,35 +71,39 @@
 
 <body>
     <div class="container">
-        <div class="card">
-            <div class="card-header">
-                <h2>Dragon Face</h2>
+        <a href="dragonFace.html" style="text-decoration: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Dragon Face</h2>
+                </div>
+                <div class="card-body">
+                    <p>Checkers inspired battle of generals</p>
+                </div>
             </div>
-            <div class="card-body">
-                <p>A draconic inspired checkers</p>
-                <a href="dragonFace.html" class="card-link">Dragon Face</a>
-            </div>
-        </div>
+        </a>
 
-        <div class="card">
-            <div class="card-header">
-                <h2>Coming soon</h2>
+        <a href="sabacc.html" style="text-decoration: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Sabacc</h2>
+                </div>
+                <div class="card-body">
+                    <p>Play the different kinds of Star Wars gambling</p>
+                </div>
             </div>
-            <div class="card-body">
-                <p>Coming soon</p>
-                <a href="#" class="card-link">Coming soon</a>
-            </div>
-        </div>
+        </a>
 
-        <div class="card">
-            <div class="card-header">
-                <h2>Coming soon</h2>
+        <a href="mahjong.html" style="text-decoration: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Mahjong</h2>
+                </div>
+                <div class="card-body">
+                    <p>An ancient chinese game like dominos</p>
+                </div>
             </div>
-            <div class="card-body">
-                <p>Coming soon</p>
-                <a href="#" class="card-link">Coming soon</a>
-            </div>
-        </div>
+        </a>
+
     </div>
 </body>
 
