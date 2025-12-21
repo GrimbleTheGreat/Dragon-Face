@@ -68,7 +68,6 @@ function calculateScore(hand) {
         if (card.value === 'A') aceCount++;
     }
 
-    // Adjust for Aces if over 21
     while (score > 21 && aceCount > 0) {
         score -= 10;
         aceCount--;
@@ -99,7 +98,6 @@ function checkForBust() {
 }
 
 function dealerTurn() {
-    // Dealer hits until 17 or higher
     while (calculateScore(dealerHand) < 17) {
         dealerHand.push(drawCard());
     }
@@ -168,3 +166,25 @@ function createCardElement(card) {
 
 // Initialize on load
 startGame();
+
+//-- Rules Tabs
+
+function openTab(evt, tabName) {
+    // 1. Get all content divs and hide them
+    const tabContents = document.getElementsByClassName("tab-content");
+    for (let i = 0; i < tabContents.length; i++) {
+        tabContents[i].style.display = "none";
+    }
+
+    // 2. Get all buttons and remove the 'active-tab' class
+    const tabButtons = document.getElementsByClassName("tab-btn");
+    for (let i = 0; i < tabButtons.length; i++) {
+        tabButtons[i].classList.remove("active-tab");
+    }
+
+    // 3. Show the specific tab requested
+    document.getElementById(tabName).style.display = "block";
+
+    // 4. Highlight the button that was clicked
+    evt.currentTarget.classList.add("active-tab");
+}

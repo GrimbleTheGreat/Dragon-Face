@@ -12,9 +12,9 @@ class MultiplayerHandler {
             playerIdSpan: document.getElementById('player-id'),
             joinIdInput: document.getElementById('join-id-input'),
             joinBtn: document.getElementById('join-btn'),
-            statusDisplay: document.getElementById('status-display'), // Make sure this ID exists or remove if not needed
+            statusDisplay: document.getElementById('status-display'),
             copyBtn: document.getElementById('copy-btn'),
-            cancelBtn: document.getElementById('cancel-host-btn') // NEW
+            cancelBtn: document.getElementById('cancel-host-btn')
         };
 
         this.initListeners();
@@ -32,15 +32,14 @@ class MultiplayerHandler {
             this.ui.copyBtn.addEventListener('click', () => this.handleCopyId());
         }
 
-        // --- NEW: Cancel Button Listener ---
+        // --- Cancel Button Listener ---
         if (this.ui.cancelBtn) {
             this.ui.cancelBtn.addEventListener('click', () => this.cancelSession());
         }
     }
 
-    // --- NEW: Cancel Logic ---
+    // --- Cancel Logic ---
     cancelSession() {
-        // 1. Close connections
         if (this.conn) {
             this.conn.close();
             this.conn = null;
@@ -50,16 +49,13 @@ class MultiplayerHandler {
             this.peer = null;
         }
 
-        // 2. Reset internal state
         this.playerNumber = null;
 
-        // 3. Reset UI
         this.ui.networkControls.style.display = 'none';
         this.ui.multiplayerBtn.style.display = 'block';
         this.ui.playerIdSpan.textContent = '';
         this.ui.joinIdInput.value = '';
 
-        // 4. Trigger the callback to unlock game.js
         if (this.callbacks.onCancel) {
             this.callbacks.onCancel();
         }
@@ -67,7 +63,7 @@ class MultiplayerHandler {
 
     initPeer(isHost, hostIdToConnect = null) {
         this.ui.multiplayerBtn.style.display = 'none';
-        this.ui.networkControls.style.display = 'flex'; // or block
+        this.ui.networkControls.style.display = 'flex';
         this.ui.playerIdSpan.textContent = "Loading...";
 
         this.peer = new Peer();
@@ -89,7 +85,7 @@ class MultiplayerHandler {
         this.peer.on('error', (err) => {
             console.error(err);
             alert("Connection Error: " + err.type);
-            this.cancelSession(); // Auto-cancel on error
+            this.cancelSession();
         });
     }
 
@@ -109,7 +105,6 @@ class MultiplayerHandler {
             this.conn.on('data', (data) => this.handleData(data));
         });
 
-        // If opponent leaves, quit back to menu
         this.conn.on('close', () => {
             alert("Opponent disconnected.");
             this.cancelSession();
@@ -136,7 +131,5 @@ class MultiplayerHandler {
         const codeText = this.ui.playerIdSpan.innerText;
         if (!codeText) return;
         await navigator.clipboard.writeText(codeText);
-        // Visual feedback logic here if desired
     }
 }
-

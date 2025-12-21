@@ -1,0 +1,207 @@
+/* --- Sabacc Styles --- */
+body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #220502;
+    color: white;
+    text-align: center;
+    display: flex;
+    flex-direction: row;
+    align-items: left;
+    justify-content: center;
+    margin-top: 1%;
+    font-size: 135%;
+}
+
+#game-table {
+    width: 75vw;
+    height: 90vh;
+    box-sizing: border-box;
+
+    /* LAYOUT & LOOK */
+    background-color: #277714;
+    border: 15px solid #4a3b2a;
+    border-radius: 30px;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.5);
+
+    /* INTERNAL ALIGNMENT */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+    padding: 20px;
+}
+
+.hand-area {
+    margin-bottom: 20px;
+    min-height: 120px;
+}
+
+.cards-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* CSS Card Design */
+.card {
+    background-color: white;
+    color: black;
+    width: 60px;
+    height: 90px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+.card.red {
+    color: #d9534f;
+}
+
+.card.black {
+    color: #333;
+}
+
+.hidden-card {
+    background-color: #b71c1c;
+    background-image: repeating-linear-gradient(45deg, #b71c1c 0, #b71c1c 10px, #c62828 10px, #c62828 20px);
+    color: transparent;
+}
+
+.controls {
+    margin-top: 20px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    margin: 0 5px;
+    font-family: inherit;
+    font-weight: bold;
+}
+
+#hit-btn {
+    background-color: #f1c40f;
+    color: #333;
+}
+
+#stand-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+#new-game-btn {
+    background-color: #3498db;
+    color: white;
+    display: none;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#status-msg {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 15px;
+    text-shadow: 1px 1px 2px black;
+}
+
+/* --- Rules Table Styles --- */
+#rules-panel {
+    width: 20vw;
+    height: 90vh;
+    box-sizing: border-box;
+    color: #333;
+    margin-left: 1.5vw;
+
+    background-color: #f5e2b9;
+    border: 10px solid #4a3b2a;
+    border-radius: 20px;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.5);
+
+    padding: 20px;
+    text-align: left;
+    overflow-y: auto;
+}
+
+#rules-panel h3 {
+    text-align: center;
+    border-bottom: 2px dashed #4a3b2a;
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 1%;
+}
+
+.rules-content p {
+    font-size: 75%;
+    line-height: 1.5;
+}
+
+.rules-content hr {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    margin: 15px 0;
+}
+
+/* Container for the buttons */
+.tabs-header {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 2px dashed #4a3b2a;
+}
+
+/* The Buttons */
+.tab-btn {
+    flex: 1;
+    background-color: rgba(0, 0, 0, 0.3);
+    color: #332828;
+    border: none;
+    padding: 10px 15px;
+    font-size: 75%;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 10px 10px 0 0;
+    transition: 0.2s;
+    margin: 0 1px 0 0;
+}
+
+/* The Active Tab (Highlighter) */
+.tab-btn.active-tab {
+    background-color: #997d5d;
+    color: #332828;
+}
+
+.tab-btn:hover:not(.active-tab) {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+}
+
+/* Content visibility logic */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.tab-content.active-content {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
