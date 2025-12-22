@@ -63,41 +63,67 @@ class MultiplayerHandler {
     }
 
     initPeer(asHost, hostId = null) {
+        console.log("Initializing Peer...");
         this.ui.menu.style.display = 'none';
         this.ui.controls.style.display = 'flex';
-        this.ui.idDisplay.innerText = "Generating...";
+        this.ui.idDisplay.innerText = "Generating ID...";
 
+        // 1. STUN Server Config (Helps computers find each other)
         const peerConfig = {
+            debug: 2, // Print errors to console
             config: {
                 'iceServers': [
-                    { url: 'stun:stun.l.google.com:19302' }
+                    { url: 'stun:stun.l.google.com:19302' },
+                    { url: 'stun:global.stun.twilio.com:3478' }
                 ]
             }
         };
 
-        this.peer = new Peer(null, peerConfig);
+        // 2. Create the Peer
+        try {
+            this.peer = new Peer(null, peerConfig);
+        } catch (e) {
+            console.error("PeerJS Failed to Start:", e);
+            alert("PeerJS failed. Are you using a Local Server?");
+            return;
+        }
 
+        // 3. Listen for ID Generation (Success)
         this.peer.on('open', (id) => {
+            console.log("My Peer ID is:", id);
             this.myId = id;
             this.ui.idDisplay.innerText = id;
 
             if (asHost) {
                 isHost = true;
                 this.ui.status.innerText = "Waiting for Player 2...";
+                this.ui.status.style.color = "yellow";
             } else {
                 isHost = false;
                 this.ui.status.innerText = "Connecting to Host...";
+                this.ui.status.style.color = "yellow";
+                console.log("Attempting connection to:", hostId);
                 this.connectToHost(hostId);
             }
         });
 
-        this.peer.on('connection', (conn) => {
-            this.handleConnection(conn);
+        // 4. Listen for Connection Errors
+        this.peer.on('error', (err) => {
+            console.error("PeerJS Error:", err);
+            this.ui.status.innerText = "Error: " + err.type;
+            this.ui.status.style.color = "red";
+
+            if (err.type === 'peer-unavailable') {
+                alert("Could not find that Host ID. Did they close the tab?");
+            } else if (err.type === 'browser-incompatible') {
+                alert("Your browser doesn't support WebRTC (Multiplayer).");
+            }
         });
 
-        this.peer.on('error', (err) => {
-            alert("Connection Error: " + err.type);
-            location.reload(); // Simple reset on error
+        // 5. Incoming Connection (Host Logic)
+        this.peer.on('connection', (conn) => {
+            console.log("Incoming connection from:", conn.peer);
+            this.handleConnection(conn);
         });
     }
 
