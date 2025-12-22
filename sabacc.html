@@ -3,71 +3,89 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Basic Blackjack</title>
+    <title>Corellian Sabacc</title>
     <link rel="stylesheet" href="sabacc.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 
 <body>
 
-    <div id="game-table">
-        <h2>Sabacc</h2>
+    <h1>Corellian Sabacc</h1>
 
-        <div class="hand-area">
-            <div>Dealer Score: <span id="dealer-score">?</span></div>
-            <div id="dealer-cards" class="cards-container"></div>
+    <div class="main-container">
+
+        <div id="game-table">
+            <div class="hand-area">
+                <div>Opponent Score: <span id="dealer-score">?</span></div>
+                <div id="dealer-cards" class="cards-container"></div>
+            </div>
+
+            <div id="status-msg">Press New Game to Start</div>
+
+            <div class="controls">
+                <button id="hit-btn" disabled>Gain</button>
+                <button id="stand-btn" disabled>Stand</button>
+                <button id="new-game-btn" style="display:inline-block">New Game</button>
+            </div>
+
+            <div class="hand-area">
+                <div>My Score: <span id="player-score">0</span></div>
+                <div id="player-cards" class="cards-container"></div>
+            </div>
         </div>
 
-        <div class="hand-area">
-            <div>Player Score: <span id="player-score">0</span></div>
-            <div id="player-cards" class="cards-container"></div>
+        <div id="rules-panel">
+
+            <div id="multiplayer-panel">
+                <h3>Comms Channel</h3>
+
+                <div id="mp-menu">
+                    <button id="host-btn" class="mp-btn">Host Game</button>
+                    <div style="margin-top:10px; display:flex; gap:5px;">
+                        <input type="text" id="join-id-input" placeholder="Enter Host ID...">
+                        <button id="join-btn" class="mp-btn">Join</button>
+                    </div>
+                </div>
+
+                <div id="network-controls" style="display:none; flex-direction:column; gap:10px;">
+                    <div style="font-size: 0.8em;">MY ID: <span id="player-id"
+                            style="color:#f1c40f; user-select: text;">...</span></div>
+                    <button id="copy-btn" class="mp-btn small">Copy ID</button>
+                    <div id="connection-status" style="color: lime;">Waiting for Opponent...</div>
+                </div>
+            </div>
+
+            <hr style="border-color: #4a3b2a; margin: 20px 0;">
+
+            <h3>Sabacc Rules</h3>
+
+            <div class="tabs-header">
+                <button class="tab-btn active-tab" onclick="openTab(event, 'rules')">Rules</button>
+                <button class="tab-btn" onclick="openTab(event,'hands')">Winning Hands</button>
+            </div>
+
+            <div id="rules" class="tab-content rules-content" style="display: block;">
+                <p><strong>Goal:</strong> Get your hand value closest to <strong>0</strong>.</p>
+                <hr>
+                <p><strong>Actions:</strong><br>
+                    • <strong>Gain:</strong> Draw a card.<br>
+                    • <strong>Swap:</strong> (Coming Soon)<br>
+                    • <strong>Stand:</strong> Lock your hand.</p>
+                <hr>
+                <p><strong>The Deck:</strong><br>
+                    62 Cards total.<br>
+                    Positive (1-10) and Negative (1-10).</p>
+            </div>
+
+            <div id="hands" class="tab-content rules-content" style="display: none;">
+                <p><strong>Pure Sabacc (0)</strong><br>Sylop + Sylop</p>
+                <hr>
+                <p><strong>Prime Sabacc (0)</strong><br>+10 and -10</p>
+                <hr>
+                <p><strong>Yee-Ha (0)</strong><br>Sylop + Pair</p>
+            </div>
         </div>
 
-        <div id="status-msg">Press New Game to Start</div>
-
-        <div class="controls">
-            <button id="hit-btn" disabled>Hit</button>
-            <button id="stand-btn" disabled>Stand</button>
-            <button id="new-game-btn" style="display:inline-block">New Game</button>
-        </div>
-
-    </div>
-
-    <div id="rules-panel">
-        <h3>Sabacc Rules</h3>
-
-        <div class="tabs-header">
-            <button class="tab-btn active-tab" onclick="openTab(event, 'rules')">Rules</button>
-            <button class="tab-btn" onclick="openTab(event,'hands')">Winning Hands</button>
-        </div>
-
-        <div id="rules" class="tab-content rules-content" style="display: block;">
-            <p><strong>Goal:</strong> Get your hand value closest to <strong>0</strong>.</p>
-            <hr>
-            <p><strong>Actions:</strong><br>
-                • <strong>Draw:</strong> Take a card from the deck<br>
-                • <strong>Discard:</strong> Place a card on the discard pile<br>
-                • <strong>Trade:</strong> Swap a card with the top of the discard pile<br>
-                • <strong>Stand:</strong> Do nothing</p>
-            <hr>
-            <p><strong>The Deck:</strong><br>
-                62 Cards total.<br>
-                Positive (1-10) and Negative (1-10) cards.</p>
-            <hr>
-        </div>
-
-        <div id="hands" class="tab-content rules-content" style="display: none;">
-            <p><strong>Pure Sabacc</strong><br>
-                Sylop (0) + Sylop (0)<br>
-                <em>Best possible hand.</em>
-            </p>
-            <hr>
-            <p><strong>Prime Sabacc</strong><br>
-                Positive 1 + Negative 1<br>
-            </p>
-            <hr>
-            <p><strong>Yee-Ha</strong><br>
-                Sylop (0) + Pair</p>
-        </div>
     </div>
 
     <script src="sabacc.js"></script>
