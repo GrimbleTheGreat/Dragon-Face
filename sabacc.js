@@ -329,38 +329,42 @@ function calculateScore(hand) {
 // --- UI UPDATES ---
 
 function updateUI() {
+    // 1. Clear the table first (Prevents the "Double Hand" bug)
     playerCardsEl.innerHTML = '';
     dealerCardsEl.innerHTML = '';
 
-    // Render My Hand (Fan Logic)
+    // 2. Render My Hand (Fan Logic)
     renderHand(myHand, playerCardsEl, true);
     playerScoreEl.innerText = calculateScore(myHand);
 
-    // Render Opponent Hand
+    // 3. Render Opponent Hand
     if (isMultiplayer) {
+        // Multiplayer: Always hidden until we add "Reveal" network event
         renderHand(opponentHand, dealerCardsEl, false);
         dealerScoreEl.innerText = "?";
     } else {
         // Single Player Logic
         opponentHand.forEach((card) => {
-            // FIX: If game is active, HIDE EVERYTHING.
             if (gameActive) {
+                // GAME ACTIVE: Show Hidden Backs
                 const hiddenDiv = document.createElement('div');
                 hiddenDiv.className = 'card hidden-card';
-
-                // Add the inner face for the border trick
-                const inner = document.createElement('div');
-                hiddenDiv.appendChild(inner);
-
                 dealerCardsEl.appendChild(hiddenDiv);
             } else {
-                // Game Over: Show the actual cards
+                // GAME OVER: Reveal everything
                 dealerCardsEl.appendChild(createCardElement(card));
             }
         });
+
+        // 4. Update Dealer Score
+        if (!gameActive) {
+            dealerScoreEl.innerText = calculateScore(opponentHand);
+        } else {
+            dealerScoreEl.innerText = "?";
+        }
     }
 
-    // Button States
+    // 5. Button States
     if (myHand.length > 0 && gameActive) {
         hitBtn.disabled = false;
         standBtn.disabled = false;
