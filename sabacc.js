@@ -67,7 +67,15 @@ class MultiplayerHandler {
         this.ui.controls.style.display = 'flex';
         this.ui.idDisplay.innerText = "Generating...";
 
-        this.peer = new Peer(); // Create PeerJS instance
+        const peerConfig = {
+            config: {
+                'iceServers': [
+                    { url: 'stun:stun.l.google.com:19302' }
+                ]
+            }
+        };
+
+        this.peer = new Peer(null, peerConfig);
 
         this.peer.on('open', (id) => {
             this.myId = id;
@@ -207,12 +215,24 @@ hitBtn.addEventListener('click', () => {
 
 standBtn.addEventListener('click', () => {
     if (isMultiplayer) {
-        // For 2-player simple prototype: Stand simply ends game for now to show scores
-        // In real game it would pass turn.
         if (isHost) {
-            determineWinner(myHand, opponentHandFromMemory); // Host needs to track opp hand
+            // Host Ends Game: Calculate Winner AND Send hands to client
+            determineWinner(myHand, opponentHandFromMemory); // Note: We need to store P2 hand
+
+            // SEND GAME OVER TO CLIENT
+            mp.send({
+                type: 'GAME_OVER',
+                hostHand: myHand,
+                winnerMsg: statusMsg.innerText
+                // Note: Real logic would calculate msg for client perspective
+            });
+
         } else {
+            // Client Stands: Tell Host
             mp.send({ type: 'ACTION_STAND' });
+            statusMsg.innerText = "Waiting for Host...";
+            hitBtn.disabled = true;
+            standBtn.disabled = true;
         }
     } else {
         dealerTurnAI();
