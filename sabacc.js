@@ -434,14 +434,72 @@ function openTab(evt, tabName) {
 }
 
 // Single Player AI (Game Over Logic)
-function dealerTurnAI() {
-    // 1. End the game state
-    gameActive = false;
+// --- WINNING LOGIC ---
 
-    // 2. Update status
-    statusMsg.innerText = "Game Over.";
+function dealerTurnAI() {
+    gameActive = false;
+    determineWinner(myHand, opponentHand);
+}
+
+function getHandRank(hand) {
+    const score = calculateScore(hand);
+    const absScore = Math.abs(score);
+    const count = hand.length;
+
+    // Check for specific cards
+    const sylops = hand.filter(c => c.value === 0).length;
+    const hasPos10 = hand.some(c => c.value === 10);
+    const hasNeg10 = hand.some(c => c.value === -10);
+
+    // RANK 1: Pure Sabacc (Two Sylops)
+    if (count === 2 && sylops === 2) {
+        return { tier: 1, name: "Pure Sabacc!", score: 0 };
+    }
+
+    // RANK 2: Prime Sabacc (+10 and -10)
+    if (count === 2 && hasPos10 && hasNeg10) {
+        return { tier: 2, name: "Prime Sabacc!", score: 0 };
+    }
+
+    // RANK 3: Yee-Ha (Sylop + Pair)
+    // We check if there is a Sylop AND if the other cards form a pair
+    if (sylops > 0 && count >= 3) {
+        // Simple check: do we have a pair in the remaining cards?
+        // For this prototype, we'll trust the 0 score with a Sylop is a Yee-Ha
+        if (score === 0) return { tier: 3, name: "Yee-Ha!", score: 0 };
+    }
+
+    // RANK 4: Regular Hand (Ranked by distance to 0)
+    return { tier: 4, name: "Hand", score: absScore };
+}
+
+function determineWinner(pHand, dHand) {
+    const pRank = getHandRank(pHand);
+    const dRank = getHandRank(dHand);
+
+    let message = "";
+
+    // 1. Compare Tiers (Lower tier number is better)
+    if (pRank.tier < dRank.tier) {
+        message = `You Win with ${pRank.name}`;
+    } else if (dRank.tier < pRank.tier) {
+        message = `Opponent Wins with ${dRank.name}`;
+    } else {
+        // 2. Tiers are equal (usually Tier 4), compare Absolute Score
+        if (pRank.score < dRank.score) { // Closer to 0 wins
+            message = "You Win! (Closer to 0)";
+        } else if (dRank.score < pRank.score) {
+            message = "Opponent Wins. (Closer to 0)";
+        } else {
+            message = "It's a Tie (Push).";
+        }
+    }
+
+    // Update UI
+    statusMsg.innerText = message;
     newGameBtn.style.display = 'inline-block';
 
-    // 3. Let the main UI function redraw the board (clearing the hidden cards)
+    // Force Game Over state for UI to reveal cards
+    gameActive = false;
     updateUI();
 }
