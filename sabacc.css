@@ -44,33 +44,105 @@ body {
 }
 
 /* CSS Card Design */
+/* --- Sabacc Card Design with Border --- */
+
+:root {
+    /* Define the shape once so we can reuse it for the border layer */
+    --sabacc-shape: polygon(15% 0, 85% 0, 100% 50%, 85% 100%, 15% 100%, 0 50%);
+}
+
 .card {
-    background-color: white;
-    color: black;
-    width: 60px;
-    height: 90px;
-    border-radius: 5px;
+    /* 1. THE BORDER COLOR (Background of the outer container) */
+    background-color: #7f8c8d;
+    /* Plain Grey */
+
+    /* 2. THE SHAPE */
+    clip-path: var(--sabacc-shape);
+
+    /* Standard dimensions */
+    width: 70px;
+    height: 115px;
+
+    /* Drop shadow follows the outer shape */
+    filter: drop-shadow(2px 3px 4px rgba(0, 0, 0, 0.4));
+
+    /* Layout */
     display: flex;
     justify-content: center;
     align-items: center;
     font-weight: bold;
-    font-size: 18px;
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    font-size: 24px;
     position: relative;
+    user-select: none;
+
+    /* Remove default border since we are faking it */
+    border: none;
 }
 
+/* 3. THE INNER FACE (This creates the gap for the border) */
+.card::before {
+    content: "";
+    position: absolute;
+
+    /* This creates the 3px thickness */
+    top: 3px;
+    left: 3px;
+    right: 3px;
+    bottom: 3px;
+
+    /* Inherit the same hexagon shape so it matches */
+    clip-path: var(--sabacc-shape);
+
+    /* Default Background (Parchment) */
+    background-color: #f4f1e8;
+
+    /* Send it behind the text */
+    z-index: -1;
+}
+
+/* --- Colors apply to the INNER FACE (::before) --- */
+
 .card.red {
-    color: #d9534f;
+    color: #c0392b;
+}
+
+.card.red::before {
+    background-color: #fadbd8;
+    /* Red Tint */
 }
 
 .card.black {
-    color: #333;
+    color: #2c3e50;
 }
 
+.card.black::before {
+    background-color: #ebedef;
+    /* Grey/Black Tint */
+}
+
+.card.green {
+    color: #27ae60;
+}
+
+.card.green::before {
+    background-color: #d5f5e3;
+    /* Green Tint */
+}
+
+/* --- Card Back --- */
+
 .hidden-card {
-    background-color: #b71c1c;
-    background-image: repeating-linear-gradient(45deg, #b71c1c 0, #b71c1c 10px, #c62828 10px, #c62828 20px);
     color: transparent;
+}
+
+/* Target the inner face of the hidden card */
+.hidden-card::before {
+    background-color: #212f3c;
+
+    background-image:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.1) 0%, transparent 40%),
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.3) 0px, rgba(0, 0, 0, 0.3) 2px, transparent 2px, transparent 10px),
+        repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.3) 0px, rgba(0, 0, 0, 0.3) 2px, transparent 2px, transparent 10px);
 }
 
 .controls {
@@ -163,7 +235,7 @@ button:disabled {
 /* The Buttons */
 .tab-btn {
     flex: 1;
-    background-color: rgba(0, 0, 0, 0.3);
+    background-color: transparent;
     color: #332828;
     border: none;
     padding: 10px 15px;
@@ -172,7 +244,7 @@ button:disabled {
     cursor: pointer;
     border-radius: 10px 10px 0 0;
     transition: 0.2s;
-    margin: 0 1px 0 0;
+    margin-bottom: 0;
 }
 
 /* The Active Tab (Highlighter) */

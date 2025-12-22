@@ -1,7 +1,9 @@
-// blackjack.js
+// sabacc.js
 
-const suits = ['♥', '♦', '♣', '♠'];
-const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+// --- Configuration ---
+const suits = ['square', 'circle', 'triangle'];
+const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // 1-10
+const colors = ['green', 'red'];
 
 let deck = [];
 let playerHand = [];
@@ -22,7 +24,8 @@ const newGameBtn = document.getElementById('new-game-btn');
 hitBtn.addEventListener('click', () => {
     playerHand.push(drawCard());
     renderGame();
-    checkForBust();
+    // Sabacc doesn't "Bust" instantly at 21, but we check ranges if you want
+    // For now, we just let them play until they Stand.
 });
 
 standBtn.addEventListener('click', () => {
@@ -35,10 +38,37 @@ newGameBtn.addEventListener('click', startGame);
 
 function createDeck() {
     deck = [];
-    for (let suit of suits) {
-        for (let value of values) {
-            deck.push({ suit, value });
+
+    // 1. Create the 60 Standard Cards (30 Green, 30 Red)
+    for (let color of colors) {
+        for (let suit of suits) {
+            for (let val of values) {
+                // Determine actual math value (Red is negative)
+                let mathValue = (color === 'green') ? val : -val;
+
+                deck.push({
+                    type: 'standard',
+                    displayVal: val, // The number shown on card (always positive)
+                    value: mathValue, // The math value (can be negative)
+                    suit: suit,
+                    color: color,
+                    // Filename hook for your future art: e.g. "red_triangle_5.png"
+                    img: `${color}_${suit}_${val}.png`
+                });
+            }
         }
+    }
+
+    // 2. Add 2 Sylops (The "Zero" cards)
+    for (let i = 0; i < 2; i++) {
+        deck.push({
+            type: 'sylop',
+            displayVal: 0,
+            value: 0,
+            suit: 'none',
+            color: 'black',
+            img: `sylop.png`
+        });
     }
 }
 
@@ -53,24 +83,10 @@ function drawCard() {
     return deck.pop();
 }
 
-function getCardValue(card) {
-    if (['J', 'Q', 'K'].includes(card.value)) return 10;
-    if (card.value === 'A') return 11;
-    return parseInt(card.value);
-}
-
 function calculateScore(hand) {
     let score = 0;
-    let aceCount = 0;
-
     for (let card of hand) {
-        score += getCardValue(card);
-        if (card.value === 'A') aceCount++;
-    }
-
-    while (score > 21 && aceCount > 0) {
-        score -= 10;
-        aceCount--;
+        score += card.value;
     }
     return score;
 }
@@ -78,45 +94,50 @@ function calculateScore(hand) {
 function startGame() {
     createDeck();
     shuffleDeck();
+
+    // Deal 2 cards each
     playerHand = [drawCard(), drawCard()];
     dealerHand = [drawCard(), drawCard()];
-    gameOver = false;
 
+    gameOver = false;
     hitBtn.disabled = false;
     standBtn.disabled = false;
     newGameBtn.style.display = 'none';
-    statusMsg.innerText = "Hit or Stand?";
+    statusMsg.innerText = "Gain, Swap, or Stand?";
 
     renderGame();
 }
 
-function checkForBust() {
-    const pScore = calculateScore(playerHand);
-    if (pScore > 21) {
-        endGame("You Busted! Dealer Wins.");
-    }
-}
-
 function dealerTurn() {
-    while (calculateScore(dealerHand) < 17) {
+    // Simple AI: Dealer tries to get close to 0
+    // If score is less than -5, Gain (to get positive)
+    // If score is more than 5, Gain (hope for negative?) - Basic logic for now
+    let score = calculateScore(dealerHand);
+
+    // Very basic Sabacc AI: Hit if far from 0
+    while (Math.abs(score) > 5) {
         dealerHand.push(drawCard());
+        score = calculateScore(dealerHand);
     }
     determineWinner();
 }
 
 function determineWinner() {
-    const pScore = calculateScore(playerHand);
-    const dScore = calculateScore(dealerHand);
+    const pScore = Math.abs(calculateScore(playerHand)); // Absolute distance from 0
+    const dScore = Math.abs(calculateScore(dealerHand));
 
-    if (dScore > 21) {
-        endGame("Dealer Busted! You Win!");
-    } else if (pScore > dScore) {
-        endGame("You Win!");
-    } else if (pScore < dScore) {
-        endGame("Dealer Wins.");
+    let msg = "";
+
+    // In Sabacc, lower absolute score wins (closest to 0)
+    if (pScore < dScore) {
+        msg = "You Win! (Closer to 0)";
+    } else if (dScore < pScore) {
+        msg = "Dealer Wins.";
     } else {
-        endGame("It's a Tie (Push).");
+        msg = "It's a Tie (Push).";
     }
+
+    endGame(`${msg} P:${calculateScore(playerHand)} D:${calculateScore(dealerHand)}`);
 }
 
 function endGame(message) {
@@ -134,14 +155,13 @@ function renderGame() {
     playerCardsEl.innerHTML = '';
     dealerCardsEl.innerHTML = '';
 
-    // Render Player Cards
     playerHand.forEach(card => playerCardsEl.appendChild(createCardElement(card)));
+
+    // In Sabacc, we usually show scores as-is
     playerScoreEl.innerText = calculateScore(playerHand);
 
-    // Render Dealer Cards
     dealerHand.forEach((card, index) => {
         if (index === 0 && !gameOver) {
-            // Face down card logic
             const hiddenDiv = document.createElement('div');
             hiddenDiv.className = 'card hidden-card';
             dealerCardsEl.appendChild(hiddenDiv);
@@ -159,32 +179,41 @@ function renderGame() {
 
 function createCardElement(card) {
     const div = document.createElement('div');
-    div.className = `card ${['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
-    div.innerText = `${card.value}${card.suit}`;
+
+    // 1. Assign Basic Classes
+    div.className = `card ${card.color}`;
+
+    // 2. Future Image Hook:
+    // Once you have images, uncomment the line below to use them!
+    // div.style.backgroundImage = `url('images/${card.img}')`;
+    // div.style.backgroundSize = 'cover';
+
+    // 3. For NOW: Text Fallback
+    // We create a symbol for the suit
+    let suitSymbol = '';
+    if (card.suit === 'square') suitSymbol = '■';
+    else if (card.suit === 'circle') suitSymbol = '●';
+    else if (card.suit === 'triangle') suitSymbol = '▲';
+    else if (card.type === 'sylop') suitSymbol = '❖';
+
+    div.innerHTML = `<span>${card.displayVal}</span><span style="font-size:14px">${suitSymbol}</span>`;
+
     return div;
 }
 
-// Initialize on load
-startGame();
-
-//-- Rules Tabs
-
+// Rules Tabs Function
 function openTab(evt, tabName) {
-    // 1. Get all content divs and hide them
     const tabContents = document.getElementsByClassName("tab-content");
     for (let i = 0; i < tabContents.length; i++) {
         tabContents[i].style.display = "none";
     }
-
-    // 2. Get all buttons and remove the 'active-tab' class
     const tabButtons = document.getElementsByClassName("tab-btn");
     for (let i = 0; i < tabButtons.length; i++) {
         tabButtons[i].classList.remove("active-tab");
     }
-
-    // 3. Show the specific tab requested
     document.getElementById(tabName).style.display = "block";
-
-    // 4. Highlight the button that was clicked
     evt.currentTarget.classList.add("active-tab");
 }
+
+// Initialize
+startGame();

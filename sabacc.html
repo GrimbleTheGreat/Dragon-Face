@@ -10,7 +10,7 @@
 <body>
 
     <div id="game-table">
-        <h2>★ BLACKJACK ★</h2>
+        <h2>Sabacc</h2>
 
         <div class="hand-area">
             <div>Dealer Score: <span id="dealer-score">?</span></div>
@@ -40,7 +40,7 @@
             <button class="tab-btn" onclick="openTab(event,'hands')">Winning Hands</button>
         </div>
 
-        <div id="rules" class="rules-content">
+        <div id="rules" class="tab-content rules-content" style="display: block;">
             <p><strong>Goal:</strong> Get your hand value closest to <strong>0</strong>.</p>
             <hr>
             <p><strong>Actions:</strong><br>
@@ -53,6 +53,20 @@
                 62 Cards total.<br>
                 Positive (1-10) and Negative (1-10) cards.</p>
             <hr>
+        </div>
+
+        <div id="hands" class="tab-content rules-content" style="display: none;">
+            <p><strong>Pure Sabacc</strong><br>
+                Sylop (0) + Sylop (0)<br>
+                <em>Best possible hand.</em>
+            </p>
+            <hr>
+            <p><strong>Prime Sabacc</strong><br>
+                Positive 1 + Negative 1<br>
+            </p>
+            <hr>
+            <p><strong>Yee-Ha</strong><br>
+                Sylop (0) + Pair</p>
         </div>
     </div>
 
